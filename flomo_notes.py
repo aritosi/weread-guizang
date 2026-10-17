@@ -70,6 +70,13 @@ PORTABLE_MD = "portrait.md"
 # 中间允许 / 表示层级；行尾再用 strip_punct 把「。）」这类跟上去的标点摘掉。
 TAG_RE = re.compile(r"(?<!\S)#([^\s#]+)")
 PUNCT_TAIL = "。，、；：！？）】」』,.;:!?)>\u3000"
+# 标签收尾的字符类：**认标签与摘标签必须是同一把尺子**。`extract_tags` 收尾用的是
+# `.strip(PUNCT_TAIL).strip("/")`（两端去标点与斜杠），而 TAG_RE 到 `#` 就断；这里把
+# 三样并成一个字符类，`strip_inline_tags` 的 lookahead 直接拼它。原先那串 lookahead
+# 是从 PUNCT_TAIL 手抄的子集（漏了 `】」』>/` 与制表空格），于是 `#灵感】` 这类成了
+# 「认得出来、摘不掉」—— 标签一路进了收成书的本名与正文，同一条里出现三遍。抄一份
+# 就会走散，所以只留这一份。
+TAG_END = "[" + re.escape(PUNCT_TAIL) + r"/#]"
 TIME_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})?")
 
 # 落单的半个代理码点（U+D800–U+DFFF，不成对）。`json` 读得下 `"\ud800"` 这种转义，
@@ -87,11 +94,17 @@ def drop_lone_surrogates(v):
     接在四个口子上：`memo_of`（一条出生时算 id 就要编码）、`_clean_memo`（账本读
     回来的唯一入口）、`save`（唯一的落盘出口）、`build_import_csv`（CSV 导出口）。
     于是手记、导入、手工编辑过的脏账本、云同步落回来的那份都不会再把便签卡住。
+
+    字典的**键**也要走一遍：`json.dump(..., ensure_ascii=False)` 编码的是整份对象，
+    一个带坏码的键与带坏码的值同样让这次落盘当场 UnicodeEncodeError。脏键来自手改 /
+    云同步落回来的那份账（`_clean_memo` 会原样留下不认识的键，`load` 也认合法 JSON 里
+    的 `"\\ud800"` 转义）。不摘它，`save` 每次都抛，整屏便签变成只读。两份键在摘完
+    之后恰好同名时后一份覆盖前一份 —— 这已经比整份写不下去好。
     """
     if isinstance(v, str):
         return SURROGATE.sub("", v)
     if isinstance(v, dict):
-        return {k: drop_lone_surrogates(x) for k, x in v.items()}
+        return {drop_lone_surrogates(k): drop_lone_surrogates(x) for k, x in v.items()}
     if isinstance(v, (list, tuple)):
         return [drop_lone_surrogates(x) for x in v]
     return v
@@ -873,7 +886,7 @@ def strip_inline_tags(md, tags):
     """
     s = str(md or "")
     for t in sorted({str(x) for x in (tags or []) if x}, key=len, reverse=True):
-        s = re.sub(r"(^|\s)#" + re.escape(t) + r"(?=\s|$|[，。、；：！？,.;:!?）)])",
+        s = re.sub(r"(^|\s)#/*" + re.escape(t) + r"(?=\s|$|" + TAG_END + r")",
                    r"\1", s)
     return re.sub(r"\n{3,}", "\n\n", re.sub(r"[ \t]{2,}", " ", s)).strip()
 

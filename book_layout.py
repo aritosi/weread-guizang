@@ -62,11 +62,17 @@ def drop_lone_surrogates(v):
     `read_meta` 是读一本书身份的唯一入口，所以 meta 这道收口放这里：书名 / 作者 /
     来路干净了，导出、打包、改名、书架清单与 HTTP 下载头那些下游就不必各自再防
     一遍。它是纯函数，别的「外部文本要落进 utf-8」的地方也能直接拿它用。
+
+    字典的**键**也要过一遍：`ui_server._write_json` 的兜底正是拿这一把尺子重写
+    （`_dump` 抛 UnicodeEncodeError 之后 `_dump(book_layout.drop_lone_surrogates(obj))`），
+    而 `json.dump(..., ensure_ascii=False)` 编码的是整份对象 —— 键上带一个坏码，
+    兜底那一遍照样抛，被手改坏的 meta 就再也写不回去。手改 / 云同步落回来的账本
+    里，坏码既可能落在值上，也可能落在键上，两处一起摘干净才算真的兜住。
     """
     if isinstance(v, str):
         return SURROGATE.sub("", v)
     if isinstance(v, dict):
-        return {k: drop_lone_surrogates(x) for k, x in v.items()}
+        return {drop_lone_surrogates(k): drop_lone_surrogates(x) for k, x in v.items()}
     if isinstance(v, list):
         return [drop_lone_surrogates(x) for x in v]
     return v
