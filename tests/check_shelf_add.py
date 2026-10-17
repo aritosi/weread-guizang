@@ -103,6 +103,36 @@ chk("succ 是看不懂的东西时回 None（由调用方报错，不硬编一�
 chk("单本时 1 == True 的老坑不复现", sa.added_count(1, 1) == 1)
 
 
+# ── 2c. 最终结论：succ 是数字字符串时，真值判会放行「一本没进」 ──────
+# 老的收尾是 `if status != 200 or not succ:` —— 它拿 succ 的真值当结论。`added_count`
+# 认 `"0"` 是 0 本，`bool("0")` 却是 True，于是接口把 succ 写成字符串 "0" 时，
+# ok 仍是 true、界面报「已加入书架（0/3）」。这里把两个判据对齐，并留一条对照证
+# 明「按真值判确实会放行」——免得以后有人把这句又改回去。
+_done0, _why0 = sa.add_verdict(200, "0", 3)
+chk("对照：按真值判 `not \"0\"` 是 False，所以老收尾会放行它",
+    (not "0") is False and (not 0) is True)
+chk("succ=\"0\" 不许报成功：回 0 本 + 人话",
+    _done0 == 0 and _why0 and "0/3" in _why0, (_done0, _why0))
+chk("succ=\"00\" 与 \"0\" 同一档（都按 0 本算）",
+    sa.add_verdict(200, "00", 3)[0] == 0 and sa.add_verdict(200, "00", 3)[1] is not None)
+chk("succ=\"2\" 而共 3 本，报 2 本、不报错",
+    sa.add_verdict(200, "2", 3) == (2, None), sa.add_verdict(200, "2", 3))
+chk("succ=True 整批都成，报 3 本、不报错",
+    sa.add_verdict(200, True, 3) == (3, None))
+chk("succ=0（整数）照旧算失败",
+    sa.add_verdict(200, 0, 3)[1] is not None)
+chk("succ 认不出时说「看不懂」，不硬编一个数",
+    sa.add_verdict(200, {"a": 1}, 3)[0] is None
+    and "看不懂" in sa.add_verdict(200, {"a": 1}, 3)[1])
+chk("HTTP 不是 200 时，哪怕 succ 说有 3 本也照样失败",
+    sa.add_verdict(500, 3, 3)[1] is not None)
+_src_sa_now = (ROOT / "shelf_add.py").read_text(encoding="utf-8")
+chk("源码：收尾只走 add_verdict 这一个出口",
+    "done, why = add_verdict(status, succ, len(ids))" in _src_sa_now)
+chk("源码：老那句按真值判的收尾已撤（失败话术不再插原始 succ）",
+    "成功 {succ}/" not in _src_sa_now)
+
+
 # ── 3. 两层接的是同一把尺子 ────────────────────────────────────────
 src_ui = (ROOT / "ui_server.py").read_text(encoding="utf-8")
 src_sa = (ROOT / "shelf_add.py").read_text(encoding="utf-8")

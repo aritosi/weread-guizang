@@ -75,6 +75,27 @@ def added_count(succ, total):
     return max(0, min(n, total))
 
 
+def add_verdict(status, succ, total):
+    """把「HTTP 状态 + 回包 succ」翻成最终结论：(真加进去几本, 失败时要回的人话)。
+
+    判据只走 `added_count` 一处，绝不再按 `succ` 的 Python 真值判。原来的收尾是
+    拿 `bool(succ)` 当结论 —— 与 #11 修掉的 `succ in (True, total)` 是同一个毛病的
+    另一面：都拿原始值的真值当结论。`added_count` 既然认数字字符串（接口把 `succ`
+    写成 `"2"` 时读作 2），那它也必须认 `"0"`；可 `bool("0")` 是 True，于是
+    **一本都没加进去**时 `ok` 还是 true、界面写「已加入书架（0/3）」。这里把两者对齐：
+    真加进去 0 本一律算失败，`succ` 完全看不懂时才说「看不懂」。
+
+    返回 `(None, 人话)` 表示 succ 形状认不出；`(n, 人话)` 表示该报错；`(n, None)`
+    表示这次真的成了 n 本。`main` 与门禁都只对着这一个出口判。
+    """
+    done = added_count(succ, total)
+    if done is None:
+        return None, f"接口回的成功数看不懂（succ={succ!r}）"
+    if status != 200 or done <= 0:
+        return done, f"没能加进书架（HTTP {status}，成功 {done}/{total}）"
+    return done, None
+
+
 def err_code(body):
     """从回包里认错误码，认不出当 0（不是对象 / 值形状怪都不抛）。
 
@@ -211,12 +232,10 @@ async def main():
             if err < 0:
                 msg = str(body.get("errmsg") or "").strip()
                 fail(f"{ERRCODE.get(err) or msg or '没能加进书架'}（错误码 {err}）")
-            if status != 200 or not succ:
-                fail(f"没能加进书架（HTTP {status}，成功 {succ}/{len(ids)}）")
 
-            done = added_count(succ, len(ids))
-            if done is None:
-                fail(f"接口回的成功数看不懂（succ={succ!r}）")
+            done, why = add_verdict(status, succ, len(ids))
+            if why:
+                fail(why)
             print(json.dumps({"ok": True,
                               "msg": f"已加入书架（{done}/{len(ids)}）",
                               "count": done, "total": len(ids),
