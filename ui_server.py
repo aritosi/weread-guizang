@@ -475,6 +475,31 @@ def load_lib():
     return normalize_lib(d)
 
 
+# 书架账（LIB_PATH）是「读整份 → 改一笔 → 写整份」，而服务是 ThreadingHTTPServer：
+# 两个窗口 / 两个标签页各点一下「新建文件夹」「贴标签」「归入夹子」，两趟请求就会各自
+# `load_lib()` 拿到同一份旧账、各自改一笔、再各自 `save_lib()` 顶回去 —— 后写的那一份
+# 把先写的那一笔整份抹掉，**两边回包都写着成功**。实测（两线程同时 `folder.new`，
+# 在 load 与 save 之间对齐）：两个 id 都回了 ok=true，盘上只剩一个夹子。
+#
+# `_WRITE_LOCK` 只保证单次落盘不打架（临时名各写各的、改名不扑空），管不住这中间的
+# 「读—改—写」窗口；阅读时长 / 阅读计划 / 热力图那几本账各有一把这样的锁
+# （`_READSTAT_LOCK` / `_PLAN_LOCK` / `_ACTIVITY_LOCK`），书架账这一格一直缺一把。
+# 所以这里补上：凡是会 `save_lib()` 的动作整段串行。锁序只有一条（先 `_LIB_LOCK`
+# 再 `_WRITE_LOCK`，`save_lib` 内部那一把），没有反向等待，不会互死。
+_LIB_LOCK = threading.RLock()
+
+# `_dispatch` 里会改书架账（`save_lib()`）的那几个动作名。单独列一张表，是为了让
+# `_action` 能在进分派器之前就把整段罩进 `_LIB_LOCK` —— 分派器里那九处
+# 「load → 改 → save」各罩一次要缩进一大片，且以后新增动作容易漏。表与源码是否
+# 对得上由 `tests/check_lib_lost_update.py` 的源码体检钉住：`_dispatch` 里每一处
+# `save_lib(` 所在的 `action == "…"` 分支都必须在这张表里，漏了就红。
+_LIB_ACTIONS = frozenset({
+    "folder.new", "folder.rename", "folder.drop",
+    "book.move", "book.order", "book.tag", "book.delete",
+    "tag.rename", "tag.drop",
+})
+
+
 # 服务多线程跑，几个小账本（书架、配置、阅读时长）都会落盘。原来它们共用
 # 固定的「xxx.tmp」，两个请求同时写就会有一个的 os.replace 扑空、直接抛错把连接带崩。
 # 统一走这个原子写：临时名带 pid+随机串互不打架，整体再串行化一次，稳。
@@ -6035,21 +6060,24 @@ class Handler(BaseHTTPRequestHandler):
             ids = _body_list((body or {}).get("books"))
             st = _body_str(body, "state")[:8]
             want = str((body or {}).get("module") or "").strip()
-            lib = load_lib()
-            n = 0
-            for b in ids:
-                # 状态只是 library.json 里的标签，不要求本地已抓取（书架上的书也能标）
-                if not re.fullmatch(r"[A-Za-z0-9_\-]{4,}", str(b or "")):
-                    continue
-                # 落在哪一格：前端说了不算、目录也还没建，所以按书号前缀认；
-                # 一次请求点名了模块（一屏里批量标）就以它为准。
-                s = lib_scope(lib, want or book_module(str(b)))
-                if st:
-                    s["state"][b] = st
-                else:
-                    s["state"].pop(b, None)
-                n += 1
-            save_lib(lib)
+            # 这是 `/api/action` 之外另一条改书架账的路（MCP 适配器与旧界面都打它），
+            # 同样整段串行 —— 见 _LIB_LOCK。
+            with _LIB_LOCK:
+                lib = load_lib()
+                n = 0
+                for b in ids:
+                    # 状态只是 library.json 里的标签，不要求本地已抓取（书架上的书也能标）
+                    if not re.fullmatch(r"[A-Za-z0-9_\-]{4,}", str(b or "")):
+                        continue
+                    # 落在哪一格：前端说了不算、目录也还没建，所以按书号前缀认；
+                    # 一次请求点名了模块（一屏里批量标）就以它为准。
+                    s = lib_scope(lib, want or book_module(str(b)))
+                    if st:
+                        s["state"][b] = st
+                    else:
+                        s["state"].pop(b, None)
+                    n += 1
+                save_lib(lib)
             skipped = len(ids) - n
             msg = f"已更新 {n} 本" + (f"（{skipped} 本 id 不合法，已跳过）" if skipped > 0 else "")
             return self._json({"ok": True, "msg": msg})
@@ -6057,19 +6085,22 @@ class Handler(BaseHTTPRequestHandler):
         if u.path == "/api/delete_many":
             ids = _body_list((body or {}).get("books"))
             n = 0
-            lib = load_lib()
-            for b in ids:
-                d = safe_book_dir(b)
-                if not d:
-                    continue
-                title = meta_title(b)
-                mod = book_layout.MODULE_OF.get(
-                    os.path.basename(os.path.dirname(d)), "weread")
-                drop_stray_md(b, title)      # 先清合并稿（还要靠这本书认自己住哪格）
-                shutil.rmtree(d)
-                lib_forget(lib, b, mod)
-                n += 1
-            save_lib(lib)
+            # 删目录与「把这几本从账上抹掉」是一件不可分的事：允许别的请求在这中间
+            # 改账本，它改的就是一份马上要被删的书占着的账。见 _LIB_LOCK。
+            with _LIB_LOCK:
+                lib = load_lib()
+                for b in ids:
+                    d = safe_book_dir(b)
+                    if not d:
+                        continue
+                    title = meta_title(b)
+                    mod = book_layout.MODULE_OF.get(
+                        os.path.basename(os.path.dirname(d)), "weread")
+                    drop_stray_md(b, title)      # 先清合并稿（还要靠这本书认自己住哪格）
+                    shutil.rmtree(d)
+                    lib_forget(lib, b, mod)
+                    n += 1
+                save_lib(lib)
             return self._json({"ok": True, "msg": f"已删除 {n} 本的本地缓存"})
 
         if u.path == "/api/agent/chat":
@@ -6586,8 +6617,18 @@ class Handler(BaseHTTPRequestHandler):
         这条链路是实测过的（起一个必定抛异常的 do_POST，客户端收到
         「Remote end closed connection without response」），所以宁可多一层：
         让「没做成」永远是一句人话 + 几行可追的日志。
+
+        改书架账的那几个动作（见 `_LIB_ACTIONS`）整段罩进 `_LIB_LOCK`：这些 handler
+        是「读整份 → 改一笔 → 写整份」，两个窗口同时点就是后写的抹掉先写的，
+        **两边还都回 ok=true**。锁罩的是整个分派（含 save_lib），不是只罩落盘。
+        `isinstance(action, str)` 是为了别把「action 写成一个列表」这种脏形状变成
+        `unhashable` 异常 —— 那种形状照旧落到分派器里回「未知操作」。
         """
+        action = (body or {}).get("action")
         try:
+            if isinstance(action, str) and action in _LIB_ACTIONS:
+                with _LIB_LOCK:
+                    return self._dispatch(body)
             return self._dispatch(body)
         except Exception as e:
             log(f"--- 操作失败（{(body or {}).get('action')}）：{type(e).__name__}: {e} ---")
