@@ -136,11 +136,22 @@ try:
         _Handler.hits)
 
     # 真洞的对照：换身地址走**裸 urlopen**（没有护栏）确实被敲中。
+    # 注意这面镜子随 Python 版本走：3.14 的 `http.client` 在 `_encode_request` 里把
+    # 请求行强制 ASCII，`1²7.0.0.1` 这种 latin-1 能编码、ASCII 编不出的主机名会在
+    # 发出之前就抛 `UnicodeEncodeError` —— 那不是「洞不存在」，只是这一层顺手挡住了。
+    # 两种结果都接受：取回来了（洞真的存在）或 urllib 自己拦下（洞被另一层挡住），
+    # 但绝不允许门禁自己崩掉；后面的护栏断言与这里无关，照旧必须全绿。
     _Handler.hits.clear()
-    with urllib.request.urlopen("http://%s:%d/secret" % (EVIL, _PORT), timeout=5) as r:
-        leaked = b"INTERNAL-SECRET-MARKER" in r.read()
-    chk("对照：裸 urlopen 用 '1²7.0.0.1' 真把内网回包取回来了（洞是真的）",
-        leaked and _Handler.hits == ["/secret"], _Handler.hits)
+    leaked = False
+    urllib_blocked = False
+    try:
+        with urllib.request.urlopen("http://%s:%d/secret" % (EVIL, _PORT), timeout=5) as r:
+            leaked = b"INTERNAL-SECRET-MARKER" in r.read()
+    except UnicodeEncodeError:
+        urllib_blocked = True
+    chk("对照：裸 urlopen 要么把内网回包取回来、要么被 urllib 自己挡在发请求之前"
+        "（洞/墙的现状随 Python 版本走，都不许把门禁带走）",
+        leaked or urllib_blocked, (_Handler.hits, urllib_blocked))
 
     # ── ⑥ 真机：两条产品路对换身地址都必须拒、且一次都没打中 ─────────────
     _Handler.hits.clear()

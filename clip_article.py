@@ -234,23 +234,31 @@ def _loopback_host(host):
     h = h.rstrip(".")
     if not h:
         return False
-    if h == "localhost" or h.endswith(".localhost"):
-        return True
-    h = h.split("%", 1)[0]          # IPv6 的 zone id（fe80::1%eth0）不算地址本体
-    try:
-        ip = ipaddress.ip_address(h)
-    except ValueError:
-        ip = None
-    if ip is None:
-        legacy = _legacy_ipv4(h)
-        if legacy is None:
-            return False
+    # IDNA 归一这一档与 `host_blocked` 是同一把尺子（第十八轮起那边认它）：`1²7.0.0.1`
+    # 真正连的是 127.0.0.1，这里若只按字面判，它会被当成「本机以外的内网」而拒掉 ——
+    # 对插图 / 订阅那条路是「多拒」、不算漏洞，但两把尺子对同一个名字给出两种答案，
+    # 下一轮改哪一边都会踩到另一边的门禁。原样与本名都判。
+    mapped_name = _idna_host(h)
+    for cand in ((h, mapped_name) if mapped_name and mapped_name != h else (h,)):
+        if cand == "localhost" or cand.endswith(".localhost"):
+            return True
+        name = cand.split("%", 1)[0]    # IPv6 的 zone id（fe80::1%eth0）不算地址本体
         try:
-            ip = ipaddress.ip_address(legacy)
+            ip = ipaddress.ip_address(name)
         except ValueError:
-            return False
-    mapped = ip.ipv4_mapped if ip.version == 6 else None
-    return bool((mapped if mapped is not None else ip).is_loopback)
+            ip = None
+        if ip is None:
+            legacy = _legacy_ipv4(name)
+            if legacy is None:
+                continue
+            try:
+                ip = ipaddress.ip_address(legacy)
+            except ValueError:
+                continue
+        mapped = ip.ipv4_mapped if ip.version == 6 else None
+        if (mapped if mapped is not None else ip).is_loopback:
+            return True
+    return False
 
 
 def host_lan_blocked(host):
