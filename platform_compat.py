@@ -439,11 +439,9 @@ def kill_stray_browsers(profile_dir, wait=1.0):
 
 # Windows 上这些是保留设备名：不管大小写、也不管带不带扩展名（`CON.md` / `aux.apkg`
 # 都算），create / rename 一律失败，或干脆落到那个设备上。判的是「第一个点之前」那一段。
-_WIN_RESERVED = frozenset(
-    ["CON", "PRN", "AUX", "NUL"]
-    + ["COM%d" % i for i in range(1, 10)]
-    + ["LPT%d" % i for i in range(1, 10)]
-)
+# 判据只有一份：设备名集合与 `is_win_device_name` 都在文件开头（`_WIN_DEVICES`），
+# 这里只是同一个集合的别名，免得两处各列一张表、日后只改一处。
+_WIN_RESERVED = _WIN_DEVICES
 # 落单的半个代理码点：JSON 存得下、utf-8 编不出，拼进路径时 `open()` 抛 UnicodeEncodeError。
 _FN_SURROGATE = re.compile("[\ud800-\udfff]")
 # 路径分隔符 / Windows 非法字符 + C0 控制区与 DEL。它们不是「内容」：`/` 会把名字劈成
@@ -493,7 +491,7 @@ def safe_file_stem(name, fallback="未命名", max_bytes=180):
     stem = scrub(name)
     if not stem:
         stem = scrub(fallback) or "未命名"
-    if stem.split(".", 1)[0].strip().upper() in _WIN_RESERVED:
+    if is_win_device_name(stem):
         stem = "_" + stem
     stem = _fit_utf8(stem, max_bytes).rstrip(" .")
     if stem:

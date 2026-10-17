@@ -116,6 +116,10 @@ chk("A8 对照：旧内联正则不截断，长书名的文件名 300 字节 > �
     (blen(old_name), blen(long_stem)))
 
 # 真盘上验一下「旧名字写不进去」：主流文件系统都限 255 字节；若这个盘不禁，只记字节对照。
+# 注意两个口径不是一回事：Linux 限 **255 字节**，而 APFS / HFS+ 限 **255 个 UTF-16 码元**。
+# 旧名字是 300 字节、100 个汉字 —— 在 Linux 上超限，在 macOS 上只有 100 码元、照样写得下。
+# 所以探针不能只问「300 个 ASCII 写不写得进」，还要问「旧名字本身写不写得进」：
+# 写得进就说明这个盘不按字节限，A8b 改由 A8 的字节对照把守（SKIP），不判红。
 probe_dir = os.path.join(SB, "probe")
 os.makedirs(probe_dir, exist_ok=True)
 fs_limits = False
@@ -124,13 +128,14 @@ try:
         f.write("x")
 except OSError:
     fs_limits = True
+old_blocked = False
 if fs_limits:
-    old_blocked = False
     try:
         with open(os.path.join(probe_dir, old_name + ".md"), "w") as f:
             f.write("x")
     except OSError:
         old_blocked = True
+if fs_limits and old_blocked:
     new_ok = False
     try:
         with open(os.path.join(probe_dir, long_stem + ".md"), "w") as f:
@@ -141,7 +146,8 @@ if fs_limits:
     chk("A8b 对照：旧名字在这个盘上确实创建失败（ENAMETOOLONG），新名字落得下",
         old_blocked and new_ok, (old_blocked, new_ok))
 else:
-    print("SKIP  A8b 这个文件系统不强制 255 字节目录项上限，改由 A8 的字节对照把守")
+    print("SKIP  A8b 这个文件系统不按 255 字节限目录项（或旧名字本身写得进），"
+          "改由 A8 的字节对照把守")
 
 # ── B. 端到端：写口落得下，清理刀按同一把尺子认得它 ────────────────────
 
