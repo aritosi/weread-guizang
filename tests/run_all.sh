@@ -749,6 +749,15 @@ run "flomo 越界字数（一长串数字不再把记忆画像整页打不开）
 # drop_lone_surrogates 一把尺子钉住出生 / 读回 / 落盘 / CSV 四个口子，并真发一次
 # POST /api/flomo/notes。纯离线，沙盒在系统临时目录。
 run "flomo 便签半个代理码点（手记 / 脏账本 / 清空 / CSV 不整屏卡住）" "$PY" tests/check_flomo_surrogate.py
+# 上面这条管的是「坏码别把写口整个卡住」，管不到「坏码落在字典的键上」。两把同名尺子
+# （flomo_notes / book_layout 的 drop_lone_surrogates）逐层洗字典时只洗了值、没洗键，
+# 而 json.dump(ensure_ascii=False) 编码的是整份对象 —— 键上一个落单代理码点，便签的
+# save / add_memo 与 ui_server._write_json 那条「再洗一遍」的兜底照样抛，整屏便签只读。
+# 同一份门禁还钉着便签标签的另一半：extract_tags 认标签的收尾集合是 PUNCT_TAIL + 斜杠，
+# 而 strip_inline_tags 那句 lookahead 是从它手抄的子集（漏了 】」』>/ 与制表空格），
+# 于是 `#灵感】` 这类「认得出、摘不掉」，标签一路进了书名与正文、同一条里出现三遍。
+# 这条逐字符要求「抽得出来 ⟺ 摘得掉」，并把两把尺子的字典键一起钉住。纯函数 + 临时目录。
+run "flomo 标签收尾 / 字典键坏码（认得出就摘得掉 / 键上的坏码也摘下）" "$PY" tests/check_flomo_tag_keys.py
 # 上面几条都在管「账本里是什么」，这一条管「账本怎么写进去」。手记 / 打标签 / 忘一条 /
 # 清空 / 导入 / 收成书全从 flomo_notes.save() 过，而后端是 ThreadingHTTPServer ——
 # 同一进程里两个请求线程可以同时进来。旧写法的临时件只带进程号，两个线程于是落到
