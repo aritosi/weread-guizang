@@ -608,6 +608,40 @@ def _write_text(path, text):
         raise
 
 
+def _atomic_artifact(dest, fill):
+    """导出成品（单本 / 多本打包的 zip、Anki 卡包 apkg）的唯一落盘出口。
+
+    这三种跟 EPUB / PDF 同属「点一下就生成一份可下载的整包」，落点又都在
+    `cache/` 下（`cache/downloads`、`cache/apkg`），而 `/api/zip` / `/api/zip-multi`
+    / `/api/apkg` 是在**请求线程里直接调**它们的（服务是 `ThreadingHTTPServer`）。
+    旧写法把这三种都直接写成终稿（`zipfile.ZipFile(dest, "w", …)` 与
+    `genanki.Package(...).write_to_file(dest)`），于是栽在同两个坑上：
+
+      · 两个窗口 / 两个标签页各点一次同一本（多本打包那份的 `dest` 还是不区分书单的
+        固定名）就是两只手往同一个 `dest` 上落，顶成正式包的是两份内容交织的字节；
+      · 打包中途被强杀（关窗 / 断电 / 活动监视器里杀进程），`dest` 上留下一份半截
+        zip，而它已经顶掉了上一份完整的导出 —— 读口只按「文件在不在」认，下载到的
+        是一份打不开的包。
+
+    与 `_write_json` / `_write_bytes` / `_write_text` 同一把尺子：先写同目录的
+    `<目标>.<pid>.<八位随机>.part`（`build_epub` 那一格也是这个形状），写完再
+    `os.replace` 顶上；失败 / 中止兜的是 `BaseException`（Ctrl-C / 停止键走
+    `KeyboardInterrupt` / `SystemExit`，它们不继承 `Exception`），先把残件收干净
+    再原样往上抛。`fill(tmp)` 只负责往给的路径里写，路径由这里说了算。
+    """
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    tmp = "%s.%d.%s.part" % (dest, os.getpid(), uuid.uuid4().hex[:8])
+    try:
+        fill(tmp)
+        os.replace(tmp, dest)
+    except BaseException:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
+
+
 def _meta_dict(d):
     """读书目录里的 meta.json，只认「对象」这一种形状；读不开 / 不是对象都回空表。
 
@@ -2152,7 +2186,9 @@ def build_apkg(book_id, title):
         deck.add_note(genanki.Note(model=model, fields=[t, back]))
     os.makedirs(APKG_DIR, exist_ok=True)
     dest = os.path.join(APKG_DIR, safe + ".apkg")
-    genanki.Package(deck).write_to_file(dest)
+    # 卡包也走原子落盘那一把尺子（见 _atomic_artifact）：两只手同时导同一本不会
+    # 把两份字节交织在 dest 上，中途被杀也不会留一份半截的包顶掉上一份完整的。
+    _atomic_artifact(dest, lambda tmp: genanki.Package(deck).write_to_file(tmp))
     return dest, len(seen)
 
 
@@ -2163,23 +2199,30 @@ def build_zip_multi(book_ids):
     os.makedirs(md_dir, exist_ok=True)
     dest = os.path.join(md_dir, "归藏-多本打包.zip")
     n = 0
-    with zipfile.ZipFile(dest, "w", zipfile.ZIP_DEFLATED) as z:
-        for bid in book_ids:
-            d = safe_book_dir(bid)
-            if not d:
-                continue
-            md = merged_markdown(bid)
-            if md is None:
-                continue
-            title = meta_title(bid)
-            safe = re.sub(r'[<>:"/\\|?*]', "_", title) or bid
-            z.writestr(f"{safe}/{safe}.md", md)          # 每本一个目录，图不会互相覆盖
-            img = os.path.join(d, "images")
-            if os.path.isdir(img):
-                for f in sorted(os.listdir(img)):
-                    if not f.startswith("."):
-                        z.write(os.path.join(img, f), f"{safe}/images/{f}")
-            n += 1
+
+    def fill(tmp):
+        nonlocal n
+        with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as z:
+            for bid in book_ids:
+                d = safe_book_dir(bid)
+                if not d:
+                    continue
+                md = merged_markdown(bid)
+                if md is None:
+                    continue
+                title = meta_title(bid)
+                safe = re.sub(r'[<>:"/\\|?*]', "_", title) or bid
+                z.writestr(f"{safe}/{safe}.md", md)      # 每本一个目录，图不会互相覆盖
+                img = os.path.join(d, "images")
+                if os.path.isdir(img):
+                    for f in sorted(os.listdir(img)):
+                        if not f.startswith("."):
+                            z.write(os.path.join(img, f), f"{safe}/images/{f}")
+                n += 1
+
+    # dest 不区分书单，两只手同时点「多本打包」写的是同一个名 —— 原子落盘那一把
+    # 尺子（见 _atomic_artifact）保证顶上去的是一份完整包，不是两份交织的字节。
+    _atomic_artifact(dest, fill)
     return dest, n
 
 
@@ -3271,12 +3314,19 @@ def build_zip(book_id):
     meta = _meta_dict(d)
     safe = re.sub(r'[<>:"/\\|?*]', "_", meta.get("title") or book_id)
     img_dir = os.path.join(d, "images")
-    with zipfile.ZipFile(dest, "w", zipfile.ZIP_DEFLATED) as z:
-        z.writestr(f"{safe}.md", md)
-        if os.path.isdir(img_dir):
-            for f in sorted(os.listdir(img_dir)):
-                if not f.startswith("."):
-                    z.write(os.path.join(img_dir, f), f"images/{f}")
+
+    def fill(tmp):
+        with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as z:
+            z.writestr(f"{safe}.md", md)
+            if os.path.isdir(img_dir):
+                for f in sorted(os.listdir(img_dir)):
+                    if not f.startswith("."):
+                        z.write(os.path.join(img_dir, f), f"images/{f}")
+
+    # 跟 EPUB / PDF 同一条路（见 _atomic_artifact）：`/api/zip` 在请求线程里直接调，
+    # 同一本书点两下就是两只手往同一个 dest 上落 —— 先写随机名的 .part、写完再改名，
+    # 顶上去的永远是一份完整的包。
+    _atomic_artifact(dest, fill)
     return dest
 
 

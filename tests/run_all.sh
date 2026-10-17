@@ -711,6 +711,13 @@ run "导出章节读取容错（坏字节不带走整本书 / 不丢章 / 干净
 # 同一本书点两下，一个改名当场扑空报「导出没做成」，另一个把半份 PDF 顶掉上一份完整导出。
 # 现在两个写口都写同目录的随机临时件、成功了再 os.replace。纯离线，PDF 那半用假铬内核。
 run "整本导出成品落盘（EPUB/PDF 临时件一次一个名 / 并发不扑空 / 失败留旧档）" "$PY" tests/check_book_export_atomic.py
+# 紧挨着上一条：EPUB / PDF 之外还有三份「可下载的整包」——单本打包、多本打包、Anki 卡包。
+# 它们原先一样直写终稿（`zipfile.ZipFile(dest, "w", …)` 与 `genanki.Package(...).write_to_file(dest)`），
+# 而 `/api/zip` / `/api/zip-multi` / `/api/apkg` 都在请求线程里直接调（多本那份的 dest 还是不区分
+# 书单的固定名）：同一本点两下就是两只手往同一个 dest 上落，中途被强杀还会留一份半截包顶掉
+# 上一份完整导出。现在三种都从 `ui_server._atomic_artifact` 走随机临时件 + os.replace。纯离线，
+# 进程内起真服务发一次 /api/zip-multi 与 /api/apkg，不开浏览器。
+run "导出成品落盘（单本/多本 zip、卡包临时件一次一个名 / 并发不扑空 / 失败留旧档）" "$PY" tests/check_export_artifact_atomic.py
 # 上面那条收的是导出（EPUB / PDF）那一侧；读同一批 chapters/*.md 的还有界面这一侧 ——
 # 阅读页取某一章、合并稿、单本 / 多本打包、剪藏 / 订阅 / 视频的「整篇小结」，原先各自
 # 又 `open(..., encoding="utf-8")` 读一遍：一个另存成 GBK 的章节在导出那边早就只坏几个字，
