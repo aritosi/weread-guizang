@@ -17,13 +17,17 @@
     顺带收一个窄口子：老写法把 `os.replace(tmp, path)` 放在 `try` **之外**，改名那一步
     自己抛（磁盘满 / 只读 / 杀毒钳住目标，或恰好在改名前后撞上中止信号）时临时件没人收。
 
-这一条钉四面
+这一条钉五面
   A. 中止信号落在**序列化 / 写正文**那一步：照旧往上传（不吞 KeyboardInterrupt）、
      随机名临时件收干净、旧档逐字节不动；
   B. 中止信号落在 **os.replace** 那一步：照旧上传、临时件收干净、旧档仍在原位；
   C. 源码接线：两个写口都兜 `BaseException`，且不再写死 `path + ".tmp"`；
   D. 对照：把老写法（只兜 `Exception`）原样跑一遍，同一个 `KeyboardInterrupt` 下
-     临时件**确实留了下来** —— 证明这道收口不是空转。
+     临时件**确实留了下来** —— 证明这道收口不是空转；
+  E. 中止信号不止 `KeyboardInterrupt` 一种：`SystemExit`（关窗 / 进程收摊）同样
+     不继承 `Exception`。两个写口在 `SystemExit` 下也照旧往上传（清理分支不许吞掉
+     它）、残件收干净、旧档逐字节不动（这一面移植自 `#177` 那条 `check_video_abort_tmp`
+     独有的一格 —— `#177` 与本 PR 是同处重复对，产品码取本 PR 的超集，覆盖面两份都收）。
 
 跑法：纯函数 + 临时目录沙盒，不联网、不起服务、不开浏览器，归 --fast。
 """
@@ -187,6 +191,32 @@ try:
         os.remove(ctl_txt + ".tmp")
 
     chk("D4 对照做完，沙盒里照旧没有 .tmp", tmp_left(BOOK) == [], tmp_left(BOOK))
+
+    # ── E 中止信号不止 Ctrl-C 一种（移植自 #177 check_video_abort_tmp 独有那几面）──
+    # KeyboardInterrupt（Ctrl-C / 停止键）之外，SystemExit（关窗 / 进程收摊）同样
+    # 不继承 Exception。上面 A / B 只喂了 KeyboardInterrupt，这里补 SystemExit：
+    # 两个写口都照旧往上传（清理分支不许吞掉它）、残件收干净、旧档逐字节不动。
+    def boom_exit(*a, **k):
+        raise SystemExit(3)
+
+    chk("E1 根因：KeyboardInterrupt / SystemExit 不继承 Exception（只兜 Exception 必漏）",
+        not issubclass(KeyboardInterrupt, Exception)
+        and issubclass(KeyboardInterrupt, BaseException)
+        and not issubclass(SystemExit, Exception)
+        and issubclass(SystemExit, BaseException))
+
+    with patched(vn, "_drop_surrogates", boom_exit):
+        got = raises_base(vn._write_json, JP, {"segments": [{"id": "new"}]})
+    chk("E2 json 口：SystemExit 照原样穿出（清理分支不许吞掉它）",
+        got == "SystemExit", got)
+    chk("E3 json 口：SystemExit 之后不留随机名 .tmp", tmp_left(BOOK) == [], tmp_left(BOOK))
+    chk("E4 json 口：SystemExit 之后旧档逐字节不动", open(JP, "rb").read() == before_json)
+
+    with patched(vn, "_drop_surrogates", boom_exit):
+        got = raises_base(vn._write_text, TP, "新正文\n")
+    chk("E5 text 口：SystemExit 照原样穿出", got == "SystemExit", got)
+    chk("E6 text 口：SystemExit 之后不留随机名 .tmp", tmp_left(BOOK) == [], tmp_left(BOOK))
+    chk("E7 text 口：SystemExit 之后旧档逐字节不动", open(TP, "rb").read() == before_txt)
 finally:
     shutil.rmtree(ROOT, ignore_errors=True)
 
