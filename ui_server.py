@@ -2163,23 +2163,34 @@ def build_zip_multi(book_ids):
     os.makedirs(md_dir, exist_ok=True)
     dest = os.path.join(md_dir, "归藏-多本打包.zip")
     n = 0
-    with zipfile.ZipFile(dest, "w", zipfile.ZIP_DEFLATED) as z:
-        for bid in book_ids:
-            d = safe_book_dir(bid)
-            if not d:
-                continue
-            md = merged_markdown(bid)
-            if md is None:
-                continue
-            title = meta_title(bid)
-            safe = re.sub(r'[<>:"/\\|?*]', "_", title) or bid
-            z.writestr(f"{safe}/{safe}.md", md)          # 每本一个目录，图不会互相覆盖
-            img = os.path.join(d, "images")
-            if os.path.isdir(img):
-                for f in sorted(os.listdir(img)):
-                    if not f.startswith("."):
-                        z.write(os.path.join(img, f), f"{safe}/images/{f}")
-            n += 1
+    # 与 build_zip 同一个理由，这里还多一档：`dest` 是个**固定名**（不随选的书变），
+    # 两台窗口各选一批「多本打包」点下去，两条线程写的就是同一个包。
+    tmp = "%s.%d.%s.part" % (dest, os.getpid(), uuid.uuid4().hex[:8])
+    try:
+        with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as z:
+            for bid in book_ids:
+                d = safe_book_dir(bid)
+                if not d:
+                    continue
+                md = merged_markdown(bid)
+                if md is None:
+                    continue
+                title = meta_title(bid)
+                safe = re.sub(r'[<>:"/\\|?*]', "_", title) or bid
+                z.writestr(f"{safe}/{safe}.md", md)          # 每本一个目录，图不会互相覆盖
+                img = os.path.join(d, "images")
+                if os.path.isdir(img):
+                    for f in sorted(os.listdir(img)):
+                        if not f.startswith("."):
+                            z.write(os.path.join(img, f), f"{safe}/images/{f}")
+                n += 1
+        os.replace(tmp, dest)
+    finally:
+        if os.path.exists(tmp):
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
     return dest, n
 
 
@@ -3271,12 +3282,26 @@ def build_zip(book_id):
     meta = _meta_dict(d)
     safe = re.sub(r'[<>:"/\\|?*]', "_", meta.get("title") or book_id)
     img_dir = os.path.join(d, "images")
-    with zipfile.ZipFile(dest, "w", zipfile.ZIP_DEFLATED) as z:
-        z.writestr(f"{safe}.md", md)
-        if os.path.isdir(img_dir):
-            for f in sorted(os.listdir(img_dir)):
-                if not f.startswith("."):
-                    z.write(os.path.join(img_dir, f), f"images/{f}")
+    # 临时件一次一个名字（与 book_export 那两个导出写口同一把尺子，理由见 `build_epub`
+    # 上面那段注释）：`/api/zip` 也是在请求线程里直接调它的，服务是 ThreadingHTTPServer
+    # —— 同一本书被点两下（双击 / 两个标签页）就是两条线程往同一个 `dest` 上落。直接写
+    # 终稿时，两份 zip 交替写会把包写成混血、谁后收尾谁说了算；写一半被杀 / 盘满则在
+    # `dest` 上留一个存在却打不开的半截包，还顶掉了上一份完整导出。
+    tmp = "%s.%d.%s.part" % (dest, os.getpid(), uuid.uuid4().hex[:8])
+    try:
+        with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as z:
+            z.writestr(f"{safe}.md", md)
+            if os.path.isdir(img_dir):
+                for f in sorted(os.listdir(img_dir)):
+                    if not f.startswith("."):
+                        z.write(os.path.join(img_dir, f), f"images/{f}")
+        os.replace(tmp, dest)
+    finally:
+        if os.path.exists(tmp):
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
     return dest
 
 
