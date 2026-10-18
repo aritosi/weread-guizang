@@ -15786,16 +15786,25 @@ function nbCard(b) {
     d.textContent = (title || '书').slice(0, 1);
     cv.replaceChildren(d);
   };
-  // 封面按「官方图 → 本地缓存」顺次退：官方图床有时拒外链，第一张挂了就换下一张，
-  // 全挂才露首字底纹，不留破图。
+  // 封面按「官方图 → 后端代取（不收 Referer，不要 Key）→ 官方接口取回」顺次退：
+  // 微信 / QQ 图床看 Referer 就回 403（与书架卡同一个病），所以要给图带 no-referrer；
+  // 只带 no-referrer 还不够 —— 链接过期、图床抽风时得有后端代取这条路。以前这里只有
+  // 「官方图 → 要 Key 的官方接口」，界面直连被图床拒掉之后只能去问官方接口，没配 Key
+  // （或接口慢）时这一墙的封面就一直是首字底纹。顺序与 shelfCard 的
+  // coverAlt / coverLocal 一致：先代取，再问要 Key 的那条。
   const alts = [];
-  if (info.cover) alts.push(info.cover);
+  const remote = info.cover ? coverSrc(info.cover) : '';
+  if (remote) {
+    alts.push(remote);
+    if (/^https?:/i.test(remote)) alts.push('/api/cover?url=' + encodeURIComponent(remote));
+  }
   if (keySet && b.bookId) alts.push('/api/cover?book=' + encodeURIComponent(b.bookId));
   if (lb.cover && lb.id) alts.push('/api/cover?book=' + encodeURIComponent(lb.id));
   if (alts.length) {
     const img = document.createElement('img');
     img.alt = '';
     img.loading = 'lazy';
+    img.referrerPolicy = 'no-referrer';   // 图床拒外站来路：与书架卡同一把尺子
     let i = 0;
     img.onerror = () => { if (i < alts.length) img.src = alts[i++]; else ph(); };
     img.src = alts[i++];
