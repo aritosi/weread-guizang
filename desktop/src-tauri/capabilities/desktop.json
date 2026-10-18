@@ -1,0 +1,9 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "desktop",
+  "description": "Only the local backend main window can invoke the desktop bridge.",
+  "windows": ["main"],
+  "local": true,
+  "remote": { "urls": ["http://127.0.0.1:*/*"] },
+  "permissions": ["core:default", "desktop-bridge"]
+}

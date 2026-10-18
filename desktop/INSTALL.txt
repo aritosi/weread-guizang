@@ -1,0 +1,15 @@
+归藏 · Apple Silicon 独立安装版（macOS 13.5 及以上）
+
+把「归藏.app」拖进 Applications，然后打开应用。Python、Playwright Chromium、
+FFmpeg 和 FFprobe 已包含在应用内，首次启动无需下载运行环境。
+
+数据默认位于 ~/Library/Application Support/归藏/。
+更新时退出应用后替换 .app 即可；应用包内不存个人数据，重装不会删除用户数据。
+请勿删除 Application Support 中的归藏目录，除非你希望主动清空全部本地数据。
+已有旧版本的数据会继续保留。旧版文稿书库会在不覆盖新书库的前提下导入。
+
+此本地构建使用临时签名，未使用 Developer ID 发行证书，未经 Apple 公证。
+它适用于本机安装验收；在其它 Mac 上联网下载后的 Gatekeeper 放行情况不在
+本次本机测试覆盖内。正式公开分发需使用发行证书重新构建、签名及公证。
+
+微信登录、第三方网页、云端 AI/转写/同步仍需要网络和用户自己的账号/API 配置。

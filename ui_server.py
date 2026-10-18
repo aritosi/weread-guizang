@@ -2431,6 +2431,14 @@ def mcp_prompt():
     所以只描述「做什么、找什么文件、怎么配」，具体位置让 Agent 自己确认。
     """
     n = len(mcp_tool_names())
+    command = "node"
+    adapter = "<归藏目录>/mcp/guizang-mcp.mjs"
+    mcp_env = {"GUIZANG_REPO": "<归藏目录>"}
+    if getattr(sys, "frozen", False):
+        command = os.path.join(sys._MEIPASS, "playwright", "driver", "node")
+        adapter = os.path.join(REPO, "mcp", "guizang-mcp.mjs")
+        mcp_env = {"GUIZANG_REPO": REPO, "GUIZANG_DATA": DATA_DIR,
+                   "GUIZANG_PYTHON": sys.executable, "GUIZANG_BOOKS": OUT_DIR}
     head = ("它提供 %d 个工具，分这些类：" % n) if n else "它提供的工具分这些类："
     return "\n".join([
         "请帮我接入一个本地 MCP 服务器，让我能用自然语言操作「归藏」——一个本地微信读书导出工具。",
@@ -2445,10 +2453,10 @@ def mcp_prompt():
         "",
         '  "guizang": {',
         '    "type": "stdio",',
-        '    "command": "node",',
-        '    "args": ["<归藏目录>/mcp/guizang-mcp.mjs"],',
+        '    "command": %s,' % json.dumps(command, ensure_ascii=False),
+        '    "args": %s,' % json.dumps([adapter], ensure_ascii=False),
         '    "timeout": 180000,',
-        '    "env": { "GUIZANG_REPO": "<归藏目录>" }',
+        '    "env": %s' % json.dumps(mcp_env, ensure_ascii=False),
         '  }',
         "",
         "配好后重启一下让 MCP 生效（MCP 是启动时加载的，不像 skills 能热加载）。",
@@ -4991,6 +4999,11 @@ def restart_backend():
     抢占），绑的还是本机这个端口，所以用户的页面、MCP 适配器都不用改地址。
     起不来也不要把人晾在原地：回一句明话，让他知道得退出重开。
     """
+    desktop_restart = globals().get("DESKTOP_RESTART")
+    if desktop_restart:
+        threading.Timer(0.8, desktop_restart).start()
+        return {"ok": True, "pid": os.getpid(), "port": LISTEN_PORT, "from": VERSION,
+                "msg": "后端正在重新启动，页面几秒后自己刷新（在跑的任务会中断）"}
     port = LISTEN_PORT or 8770
     exe = sys.executable
     script = os.path.abspath(__file__)
@@ -6753,6 +6766,10 @@ class Handler(BaseHTTPRequestHandler):
                                "available": video_avail()})
 
         if action == "install":
+            if getattr(sys, "frozen", False):
+                return self._json({"ok": chromium_ready(),
+                                   "msg": "应用已内置浏览器，可直接使用。" if chromium_ready()
+                                   else "应用内置浏览器缺失，请重新安装完整应用。"})
             # 只有这一步需要把系统代理翻成环境变量：playwright 的下载器是 Node，
             # 不读系统代理设置，只认 HTTP_PROXY / HTTPS_PROXY。
             # 取书任务不能带这个 —— 那是浏览器的流量，走代理反而可能把
@@ -7031,6 +7048,7 @@ def main():
     pc.ensure_browser_env()
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", type=int, default=8770)
+    ap.add_argument("--ready-file", default="")
     # --takeover：端口上要是挂着「别的代码」写的归藏后端，停掉它、自己接管。
     #   启动器（.command / 壳 / MCP 适配器）都带上它 —— 用户装的、改的都是新代码，
     #   点开却只有旧功能，根因就是旧进程一直供在那个端口上，新进程只好往后挪端口，
@@ -7060,15 +7078,25 @@ def main():
     print(f"  解释器  : {py()}", flush=True)
     print(f"  浏览器  : {pc.ms_playwright_dir()}", flush=True)
     print(f"  书库    : {OUT_DIR}", flush=True)
-    for p in range(args.port, args.port + 20):
+    for p in ([0] if args.port == 0 else range(args.port, args.port + 20)):
         try:
             srv = ThreadingHTTPServer(("127.0.0.1", p), Handler)
+            p = srv.server_address[1]
             LISTEN_PORT = p
             # 绑到哪个口就写哪个口：默认端口被占时上面这个循环会自己往后挪，
             # 而 MCP 适配器只拿得到我们请它用的那个数。不写下来，挪完就没人找得着。
             pc.write_runtime(REPO, p, version=VERSION, code=CODE_HASH)
+            if args.ready_file:
+                ready = {"port": p, "pid": os.getpid(), "data_dir": DATA_DIR,
+                         "version": VERSION}
+                dest = os.path.abspath(args.ready_file)
+                os.makedirs(os.path.dirname(dest), exist_ok=True)
+                _write_json(dest, ready)
             print(f"  微信读书导出 → http://127.0.0.1:{p}", flush=True)
-            srv.serve_forever()
+            try:
+                srv.serve_forever()
+            finally:
+                srv.server_close()
             return
         except OSError:
             continue

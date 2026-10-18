@@ -83,6 +83,7 @@ run "MCP 标准输入脏行（坏行不许带走适配器）" "$PY" tests/check_
 run "控件体检" "$PY" tests/audit_ui.py
 run "个人信息扫描" "$PY" tests/check_privacy.py
 run "跨平台口径" "$PY" tests/test_platform_compat.py
+run "桌面冻结运行入口" "$PY" tests/test_desktop_runtime.py
 # 认指纹的读口也得防「对方回的 JSON 形状不对」。backend_identity() 读 /api/state 的
 # version / code / task，前两个是标量、怎么脏都能 str()，task 却要往下 .get("running")：
 # 非空非对象（字符串 / 数组 / 数字）时旧写法 `(task or {}).get(...)` 当场 AttributeError。

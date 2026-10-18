@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "desktop-bridge"
+description = "Allow the local main window to persist preferences, choose exports, and finish a graceful exit."
+commands.allow = ["pick_export_dir", "save_web_state", "finish_close"]

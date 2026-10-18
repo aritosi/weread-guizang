@@ -109,6 +109,17 @@ def main():
     child_env()          # 先把「用不用系统代理」这条信息亮出来，别等下载卡住才说
     say()
 
+    if getattr(sys, "frozen", False):
+        # A signed application carries this runtime. Installing into or modifying
+        # the bundle would break both offline operation and its signature.
+        dependencies = python_works(sys.executable,
+            "import playwright, genanki, pypdf, feedparser, yt_dlp")
+        import ffmpeg_tool
+        media = ffmpeg_tool.status()
+        ready = dependencies and browser_ready() and media.get("found") and media.get("ffprobe")
+        say("内置运行环境已就绪。" if ready else "应用内置组件缺失，请重新安装完整的归藏应用。")
+        return 0 if ready else 1
+
     # ── 1. 虚拟环境 ────────────────────────────────────────────────
     venv = pc.venv_dir(HERE)
     exe = pc.venv_python_only(HERE)

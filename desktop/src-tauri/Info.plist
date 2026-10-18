@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>NSHighResolutionCapable</key><true/>
+  <key>NSAppTransportSecurity</key><dict>
+    <key>NSAllowsLocalNetworking</key><true/>
+  </dict>
+  <key>NSDownloadsFolderUsageDescription</key><string>将您选择的导出文件保存到下载文件夹。</string>
+  <key>NSDocumentsFolderUsageDescription</key><string>读取已有的归藏书库，或保存您选择的导出文件。</string>
+</dict></plist>

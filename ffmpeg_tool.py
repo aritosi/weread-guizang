@@ -73,6 +73,10 @@ def _resolve(name):
     再看 PATH，最后看几个常见安装位置。任何一步都可能什么都没有，所以结尾返回
     (None, "")，由调用方决定是报错还是当作没找到。
     """
+    # The offline desktop bundle must win over an obsolete user-cache binary.
+    bundled = os.environ.get("GUIZANG_" + name.upper(), "").strip()
+    if _is_exe(bundled):
+        return bundled, "bundled"
     local = os.path.join(tools_dir(), name)
     if _is_exe(local):
         return local, "bundled"

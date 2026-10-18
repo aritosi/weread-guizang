@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>归藏</title>
+<style>
+  :root{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif;color:#263326;background:#f4f3eb}
+  body{margin:0;display:grid;place-items:center;min-height:100vh}main{max-width:560px;padding:48px}
+  h1{font:500 40px/1.2 serif;letter-spacing:.2em;margin:0 0 24px}p{line-height:1.8;color:#657060}
+  #error{display:none;white-space:pre-wrap;word-break:break-word;color:#a13929;font-size:14px}
+  .dot{display:inline-block;width:7px;height:7px;background:#758870;border-radius:50%;animation:pulse 1.4s infinite;margin-right:8px}
+  @keyframes pulse{50%{opacity:.3}}
+</style>
+<main><h1>归藏</h1><p id="status"><span class="dot"></span>正在打开书房…</p><p id="error"></p></main>
+<script>window.gzStartupError = message => {document.getElementById('status').textContent='书房暂时没能打开';const el=document.getElementById('error');el.style.display='block';el.textContent=message;};</script>
+</html>

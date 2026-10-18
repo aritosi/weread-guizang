@@ -44,6 +44,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import time
 import traceback
 import urllib.error
@@ -518,6 +519,11 @@ def _ydl_options(extra=None, url=""):
         "fragment_retries": 3,
         "socket_timeout": 30,
     }
+    if getattr(sys, "frozen", False):
+        # Reuse Playwright's shipped Node for yt-dlp's JavaScript evaluator.
+        # Frozen installs must not depend on node/deno being present in PATH.
+        opts["js_runtimes"] = {"node": {"path": os.path.join(
+            sys._MEIPASS, "playwright", "driver", "node")}}
     if _is_youtube(url):
         cf = cookie_file()
         if cf:

@@ -1,0 +1,45 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "归藏",
+  "version": "1.2.2",
+  "identifier": "com.guizang.desktop",
+  "build": {
+    "frontendDist": "../frontend"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [],
+    "security": {
+      "csp": null,
+      "capabilities": [
+        "desktop"
+      ]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "app",
+      "dmg"
+    ],
+    "category": "Productivity",
+    "icon": [
+      "icons/appicon.icns"
+    ],
+    "shortDescription": "微信读书、笔记与知识工具",
+    "resources": {
+      "../../dist/desktop/backend/": "backend/",
+      "../../dist/desktop/browsers/": "browsers/",
+      "../../dist/desktop/media/": "media/",
+      "../../dist/desktop/licenses/": "licenses/",
+      "../../dist/desktop/dependency-manifest.json": "dependency-manifest.json"
+    },
+    "macOS": {
+      "minimumSystemVersion": "13.5",
+      "signingIdentity": "-",
+      "hardenedRuntime": true,
+      "entitlements": "Entitlements.plist",
+      "infoPlist": "Info.plist"
+    }
+  }
+}

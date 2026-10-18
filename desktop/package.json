@@ -1,0 +1,7 @@
+{
+  "name": "guizang-desktop-build",
+  "version": "1.2.2",
+  "private": true,
+  "scripts": { "tauri": "tauri", "build": "tauri build --bundles app" },
+  "devDependencies": { "@tauri-apps/cli": "^2.10.0" }
+}

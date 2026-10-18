@@ -220,6 +220,10 @@ def venv_python(repo):
 
     环境变量 GUIZANG_PYTHON 最优先（想指定别的解释器时用）。
     """
+    # Frozen sidecars are their own script interpreter. Never accidentally reuse a
+    # development venv (or host override) carried over in an existing data folder.
+    if getattr(sys, "frozen", False):
+        return sys.executable
     override = (os.environ.get("GUIZANG_PYTHON") or "").strip()
     if override and os.path.isfile(override):
         return override

@@ -15,3 +15,11 @@ runtime.json
 # 断电 / 强杀留下的半截件不会在 `git status` 里冒充新文件。
 runtime.json.tmp
 runtime.json.*.tmp
+.build-desktop-venv/
+build/
+desktop/node_modules/
+desktop/src-tauri/target/
+desktop/src-tauri/gen/
+desktop/.installed-test/
+.build-desktop/
+.desktop-*-build.log

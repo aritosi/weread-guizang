@@ -192,6 +192,9 @@ def _safe_to_remove(path):
 
 def component_items():
     """为了让这软件跑起来而装的东西。每一项都是 (key, 标签, 路径或动作)。"""
+    if getattr(sys, "frozen", False):
+        # Bundled runtimes are part of the signed app, never uninstallable cache.
+        return []
     items = [
         ("venv", "虚拟环境（依赖都在里面）", pc.venv_dir(REPO)),
         ("ffmpeg", "自己下的那份 ffmpeg / ffprobe", os.path.join(cache_dir(), "tools")),
