@@ -3,6 +3,7 @@ name: macOS installer release
 on:
   push:
     tags: ['v*']
+    branches: ['codex/release-*']
   workflow_dispatch:
     inputs:
       tag:
@@ -24,7 +25,7 @@ jobs:
     permissions:
       contents: write
     env:
-      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+      RELEASE_REF: ${{ inputs.tag || github.ref_name }}
       CARGO_BUILD_JOBS: '2'
     steps:
       - uses: actions/checkout@v4
@@ -42,10 +43,17 @@ jobs:
         run: |
           python3 - <<'PY'
           import os, pathlib, re
+          ref = os.environ['RELEASE_REF']
+          tag = ref.removeprefix('codex/release-')
           version = re.search(r'^VERSION\s*=\s*"([^"]+)"', pathlib.Path('ui_server.py').read_text(), re.M)[1]
-          assert os.environ['RELEASE_TAG'] == 'v' + version, 'Tag and application version differ'
-          assert pathlib.Path('.github/releases/' + os.environ['RELEASE_TAG'] + '.md').is_file()
+          assert tag == 'v' + version, 'Tag and application version differ'
+          assert pathlib.Path('.github/releases/' + tag + '.md').is_file()
+          with open(os.environ['GITHUB_ENV'], 'a') as stream:
+              stream.write('RELEASE_TAG=' + tag + '\n')
           PY
+          tag="${RELEASE_REF#codex/release-}"
+          git fetch --depth=1 origin "refs/tags/$tag"
+          git checkout --detach FETCH_HEAD
           test "$(uname -m)" = arm64
           rustup toolchain install stable --profile minimal
           rustup default stable
