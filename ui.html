@@ -6524,15 +6524,49 @@ function wrRenderTable(head, aligns, rows) {
     + "</tbody></table>";
 }
 
+/* 围栏代码块那把尺子：与后端 md_fence.py 一条不差 —— 导出（book_export.md_to_html）
+   读的就是它，这里只有译写。原先这是一个「行首三反引号就翻转 fenced」的简单开关，
+   四种边角全和后端走散（后端 1.2.1 起已收进 md_fence，这份一直没跟上）：
+     · `~~~` 起的围栏不认 —— 导出是代码块，编辑时把里面的 `# 注释` 当成了真标题；
+     · ` ``` a`b `（反引号信息串里还有反引号）按 CommonMark 只是正文，这里却当开栏，
+       后面真正的标题一路吞进 <pre>，而且再也不出来；
+     · 收围栏不比长度、不比字符 —— 短一行或另一种字符也能把块收掉；
+     · 计数落单一次，后面整篇都成了「代码里」，反斜杠转义不再抽取。
+   编辑时看到的与导出的成了两样东西，而存盘是拿编辑器里这份 DOM 序列化回去的：
+   结构一错，写回磁盘的 Markdown 跟着错 —— 这正是「丢稿」那一类最坏的 bug。
+   判据照 md_fence.fence_mark（围栏形状 + 信息串里不许再有反引号）与 fence_mask
+   （同种字符、不短于开头、后面没别的东西才算收尾）逐条抄，别在别处再写第三份。 */
+const WR_FENCE = /^( {0,3})(`{3,}|~{3,})(.*)$/;
+
+function wrFenceMark(line) {
+  const m = WR_FENCE.exec(String(line === null || line === undefined ? "" : line));
+  if (!m) return null;
+  const ch = m[2].charAt(0), run = m[2].length, info = m[3];
+  if (ch === "`" && info.indexOf("`") >= 0) return null;
+  return {ch: ch, run: run, info: info};
+}
+
+function wrFenceMask(lines) {
+  const mask = [];
+  let fence = null;
+  for (let i = 0; i < lines.length; i++) {
+    const f = wrFenceMark(lines[i]);
+    if (fence === null) {
+      if (f) { fence = [f.ch, f.run]; mask.push(true); continue; }
+      mask.push(false); continue;
+    }
+    if (f && f.ch === fence[0] && f.run >= fence[1] && !f.info.trim()) fence = null;
+    mask.push(true);
+  }
+  return mask;
+}
+
 /** 整篇 Markdown → 编辑器里那一片 HTML。块判据、条数、顺序全按 md_to_html 抄。 */
 function wrParse(md) {
   const raw = String(md || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
-  const keep = [], lines = [];
-  let fenced = false;
+  const keep = [], lines = [], inCode = wrFenceMask(raw);
   for (let i = 0; i < raw.length; i++) {
-    const s = raw[i];
-    if (String(s).trim().slice(0, 3) === "```") { fenced = !fenced; lines.push(s); continue; }
-    lines.push(fenced ? s : wrStashLine(s, keep));
+    lines.push(inCode[i] ? raw[i] : wrStashLine(raw[i], keep));
   }
   const out = [];
   let i = 0;
@@ -6541,12 +6575,17 @@ function wrParse(md) {
   while (i < n) {
     const s = trim(lines[i]);
     if (!s) { i++; continue; }
-    if (s.slice(0, 3) === "```") {
-      const lang = s.slice(3).trim();
+    const mark = wrFenceMark(lines[i]);
+    if (mark) {
+      const lang = mark.info.trim();
       const buf = [];
       i++;
-      while (i < n && trim(lines[i]).slice(0, 3) !== "```") { buf.push(lines[i]); i++; }
-      i++;
+      while (i < n) {
+        const close = wrFenceMark(lines[i]);
+        if (close && close.ch === mark.ch && close.run >= mark.run
+          && !close.info.trim()) { i++; break; }
+        buf.push(lines[i]); i++;
+      }
       out.push("<pre><code" + (lang ? ' class="lang-' + wrEscH(lang) + '"' : "") + ">"
         + wrEscH(buf.join("\n")) + "</code></pre>");
       continue;
@@ -6599,7 +6638,7 @@ function wrParse(md) {
     i++;
     while (i < n) {
       const nxt = trim(lines[i]);
-      if (!nxt || nxt.slice(0, 3) === "```" || nxt.charAt(0) === ">"
+      if (!nxt || wrFenceMark(lines[i]) || nxt.charAt(0) === ">"
         || WRE.hr.test(nxt) || /^#{1,6}\s+/.test(nxt)
         || WRE.ul.test(nxt) || WRE.ol.test(nxt) || wrTableAt(lines, i)) break;
       buf.push(nxt);
