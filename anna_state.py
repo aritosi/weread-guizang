@@ -333,8 +333,17 @@ def clean_domain(domain):
 
 
 def with_scheme(domain):
+    """给一个域名补上 `https://` 前缀。
+
+    只看 `startswith("http")` 是不够的：那是「以 h-t-t-p 四个字母开头」，不是
+    「已经有协议头」。用户填的镜像里只要主机名本身以 http 开头（`httpbin.org`），
+    就会被当成「已经带了协议」原样返回，拼出来的窗口地址少了协议头，`page.goto`
+    当场报「Cannot navigate to invalid URL」—— 搜索窗口开不出来，界面却看不出
+    是哪一步错了。clean_domain 已经把 `^https?://` 剥掉，所以这里判的是**完整的
+    `http://` / `https://` 前缀**，不是前四个字符。
+    """
     d = clean_domain(domain)
-    return d if d.startswith("http") else "https://" + d
+    return d if d.startswith(("http://", "https://")) else "https://" + d
 
 
 def search_url(term, domain=None):

@@ -115,6 +115,16 @@ def normalize(raw):
     # 会被补成 `https://javascript:alert(1)`，把一段脚本当成主机名放行。
     if not _SCHEME.match(u):
         u = "https://" + u
+    else:
+        # 有冒号不等于有协议：地址栏里打 `example.com:8080`（主机 + 端口）时，
+        # `_SCHEME` 会把 `example.com:` 整个当协议名，紧接着被下面那道闸以
+        # 「只认 http/https 链接（现在这个是 example.com）」拒掉 —— 一个正常地址
+        # 打不开。判据拆两步：`http(s)` 照旧算协议（原样留给下面那道闸）；「带点的
+        # 开头」或「冒号后直接是数字」算 主机:端口，补 https 再看；其余
+        # （`javascript:` / `data:` / `mailto:` / `ftp://`）一个字不动，仍归下面拒。
+        head, _sep, rest = u.partition(":")
+        if head.lower() not in ALLOWED_SCHEMES and ("." in head or rest[:1].isdigit()):
+            u = "https://" + u
     # urlparse 自己会对半个 IPv6 方括号（`http://[::1`、`https://[`）当场抛 ValueError。
     # 它不是 Blocked，`browse()` 只接 Blocked —— 异常会一路穿出 /api/browse，客户端拿到
     # 的是一条空响应（连接被掐），而不是 error_page 铺的那页人话。地址解不出来就是拒绝，
