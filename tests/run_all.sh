@@ -243,6 +243,11 @@ run "任务收尾（进程退了就收 / 读出错也收）" "$PY" tests/check_t
 # 三条新线（订阅 / 视频 / 平台解析）都是离线自测：夹具跑在本机临时 http.server 上，
 # 数据目录全指进各自沙盒，不联网、不碰用户真实书库。
 run "RSS 订阅（发现 / 抓取 / 去重 / 入库）" "$PY" tests/check_feed.py
+# 别人按规范发出来的源得认得：带 UTF-8 BOM 的 JSON Feed（BOM 不是空白，lstrip 摘不掉，
+# 旧写法把它当 RSS 解出 0 条、`discover` 直接报「没找到订阅源」）与 HTML `<link type>`
+# 上带 MIME 参数的写法（`application/rss+xml; charset=utf-8`，HTTP `Link:` 头那条路
+# 早就按 `;` 截断了，两条发现路必须是同一把尺子）。纯逻辑 + 假取回，离线，归静态段。
+run "订阅源发现（带 BOM 的 JSON Feed / <link> 的 MIME 参数）" "$PY" tests/check_feed_bom.py
 # 刷新合并只认非空的正文：有的源在两次抓取之间只在 title / link 之间摆动，也可能
 # 只回半截内容。旧代码用 content_hash 判「文章被改过」，而 parse_feed 每条一定带
 # summary / content_html（可以是空串），于是这一趟没给正文时，上一次存好的正文会

@@ -871,15 +871,30 @@ def _parse_jsonfeed(text, base=""):
                              "entries": entries})
 
 
+def _no_bom(text):
+    """摘掉开头那一个 U+FEFF（UTF-8 BOM 解出来的样子）。
+
+    为什么单独一个函数：外站给的 JSON Feed 可能就是一个带 BOM 的 .json 文件
+    （EF BB BF 开头，不少生成器就这么写），而 BOM 不是空白 —— `str.lstrip()` 摘不掉
+    它，于是 `ROOT.startswith("{")` 与 `json.loads` 都栽在这一下：同一个源在
+    `parse_feed` 里被判成 RSS、解出 0 条，用户看到的是「这个地址上没找到订阅源」。
+    只在开头摘一个，正文中间的同名码点一个字不动。
+    """
+    return text[1:] if text[:1] == "\ufeff" else text
+
+
 def _decode(blob):
     """字节 → 文本。先按 feedparser 认出来的编码，再退 utf-8，最后 GBK。
 
     GBK 那步不是可选项：国内不少老站点的 RSS 头里写 encoding=utf-8 但正文其实是
     GB2312，直接按 utf-8 errors=replace 会得到满屏『锟斤拷』。这里用替换解码先探，
     出现替换符再换 GBK 重试。
+
+    每一条出口都过一遍 `_no_bom`：这是全仓字节 → 订阅源文本的唯一一道口，BOM 要在
+    进 `parse_feed` / `discover` 之前就摘掉，下游不必各自再防一次。
     """
     if isinstance(blob, str):
-        return blob
+        return _no_bom(blob)
     head = blob[:200].decode("ascii", errors="ignore")
     m = re.search(r'encoding=["\']([\w-]+)["\']', head, re.I)
     charset = m.group(1) if m else ""
@@ -887,7 +902,7 @@ def _decode(blob):
         if not enc:
             continue
         try:
-            return blob.decode(enc)
+            return _no_bom(blob.decode(enc))
         except Exception:
             continue
     txt = blob.decode("utf-8", errors="replace")
@@ -898,7 +913,7 @@ def _decode(blob):
                 txt = gbk
         except Exception:
             pass
-    return txt
+    return _no_bom(txt)
 
 
 # ── 发现 ────────────────────────────────────────────────────────────
@@ -916,7 +931,10 @@ def _link_rel_alternate(raw, base=""):
         hm = re.search(r'(?i)href\s*=\s*["\']?([^"\'>\s]+)', tag)
         if not tm or not hm:
             continue
-        kind = FEED_TYPES.get(tm.group(1).strip().lower())
+        # `type` 上带 MIME 参数是合法写法（`application/rss+xml; charset=utf-8`），
+        # 而 HTTP `Link:` 头那条路（`_link_header`）早就按 `;` 截断 —— 两条发现路
+        # 必须是同一把尺子，不然同一份 HTML 页在这里被漏掉、在别处又被认出来。
+        kind = FEED_TYPES.get(tm.group(1).split(";")[0].strip().lower())
         if not kind:
             continue
         title = ""
@@ -957,7 +975,11 @@ def _looks_like_feed(blob):
     当成订阅源，反而把页面里 <link alternate> 指着的真源挡在后面用不上。
     判据：feed 的根元素之前不会先出现 <!doctype / <html。
     """
-    head = blob[:4096].lstrip()
+    # 带 UTF-8 BOM 的 JSON Feed：那三个字节不是空白，`bytes.lstrip()` 摘不掉它，
+    # 下面 `head[:1] == b"{"` 当场判不出来 —— 「地址本来就是订阅源」这一条路走不通，
+    # 用户粘一个完好的 JSON Feed 地址却得到「没找到订阅源」。只摘开头那三个字节。
+    raw = blob[3:] if blob[:3] == b"\xef\xbb\xbf" else blob
+    head = raw[:4096].lstrip()
     if head[:1] == b"{":
         try:
             doc = json.loads(_decode(blob))
