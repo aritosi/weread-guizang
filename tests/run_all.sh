@@ -694,6 +694,14 @@ run "导出元数据 XML 字符（控制符 / 半个代理码点不打坏 EPUB�
 # XML、阅读器整本拒收，而导出报成功。这一条按产生式的补集实跑：非法的洗掉、合法
 # 的（C1 / U+FFFD / emoji）一个字不改，并留一条「旧清单确实漏 U+FFFF」的对照。
 run "导出 XML Char 产生式（U+FFFE / U+FFFF 不打坏 EPUB，合法字符一个不改）" "$PY" tests/check_export_xml_ruler.py
+# 上一条管「非法字符会不会溜进成品」，这一条管「合法字符会不会被转义两次」：
+# `book_export._first_heading` 从 `md_to_html`（已转义）的 h1 里抠标题，抠出来直接
+# 交给 nav 与每一节的 `<title>`，而那一层还会再 `_esc()` 一次 —— 于是 `Tom & Jerry`
+# 在成品里写成 `Tom &amp;amp;`，阅读器的目录与章节标题栏上多出一个字面量 `amp;`，
+# 同一章正文的 `<h1>` 却是对的。修法是抠出来先 `html.unescape` 还原成纯文本。
+# 这一条真打一个 EPUB，目录与 `<title>` 都用 ElementTree 解出来逐字比，并留一条
+# 「旧的抠法（不还原实体）确实产出 `&amp;amp;`」的对照。
+run "EPUB 章节标题只转义一次（目录与 <title> 解出来就是原文，& / < / > 不再写成 &amp;amp;）" "$PY" tests/check_epub_title_escape.py
 # 跟上面那条并排：那条管「进成品的内容能不能逃出去」，这条管「成品本身是什么字节」。
 # export_precise 写出去的章节 md / raw json / 合并稿原来不写 encoding，靠系统默认编码 ——
 # macOS 恰好是 UTF-8 所以一直没露馅，Windows 的 GBK 代码页上就变成写 GBK、读 UTF-8，
