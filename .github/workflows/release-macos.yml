@@ -32,9 +32,10 @@ jobs:
         with:
           ref: ${{ inputs.tag || github.ref_name }}
           persist-credentials: false
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
-          python-version: '3.12'
+          python-version: '3.12.15'
+          enable-cache: false
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -58,7 +59,11 @@ jobs:
           rustup toolchain install stable --profile minimal
           rustup default stable
       - name: Build self-contained DMG
-        run: bash desktop/build_macos.sh
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GUIZANG_BUILD_PYTHON="$(uv python find --managed-python 3.12.15)"
+          bash desktop/build_macos.sh 2>&1 | tee "$RUNNER_TEMP/guizang-build.log"
       - name: Source regression gates
         shell: bash
         run: |
@@ -124,5 +129,6 @@ jobs:
             dist/macos/test-results/
             dist/desktop/*audit.json
             dist/desktop/dependency-manifest.json
+            ${{ runner.temp }}/guizang-build.log
           retention-days: 14
           if-no-files-found: ignore
