@@ -1040,6 +1040,16 @@ run "云同步取回落盘并发（两个写者不互相搬走临时件 / 目标
 # 把会 `save_lib()` 的动作整段罩进 `_LIB_LOCK`，两条只走 `do_POST` 的路各自罩住。
 # 源码体检（动作表不许漏登记）+ 旧写法对照（确实会丢）+ 真服务两个请求同时打。
 run "书架账丢更新（两个请求同时改，后写的不抹掉先写的）" "$PY" tests/check_lib_lost_update.py
+# 这一条管的是「这本书住在哪一格」那把尺子。`book.tag` / `book.order` / `/api/book_state`
+# 都走 `book_module()`（先看目录、目录不在模块文件夹里时按 meta / 前缀认），只有
+# `book.move` 与两条删路（`book.delete` 与 `/api/delete_many` 批量删缓存）是拿
+# 「父目录叫什么」去猜，猜不中落回 `weread`。
+# 平铺书是受支持的状态（`resolve()` 专门把平铺旧位置列进候选，《部署说明》§六 那条
+# 命令行 `export_precise.py <ID>` 写出来的就是平铺书）：在剪藏那一屏给它「归入分类」
+# 会回「这个模块里没有这个文件夹」，删它则在剪藏格里留下 assign / tags 幽灵记录
+# （`prune_lib` 只在 /api/state 读路径上内存裁，落盘那份一直脏）。进程内真服务上
+# 打 book.move / book.delete / 批量删，另带「旧尺子确实分叉」的对照与跨格护栏回归。
+run "平铺书认格（归入夹子 / 单删 + 批删都按 book_module 认格，不留幽灵）" "$PY" tests/check_lib_flat_module.py
 # 上面三条都在讲「我们自己发的请求对不对」，这一条管「对方回的东西是什么形状」。
 # 设备码 / 令牌 / 上传会话这几段 JSON 全都来自微软那一头，中间还可能夹一层反向代理
 # 或门户认证页（回 HTML）；旧读法 `json.loads(...).get(...)` 遇到 HTML 抛
