@@ -392,6 +392,14 @@ run "ffmpeg 按需下载（离线）" "$PY" tests/check_ffmpeg_tool.py
 # 纯离线沙盒，不联网、不碰真实 cache/，故归 --fast 静态段。
 run "ffmpeg 下载中止残件（Ctrl-C 不留 .part）" "$PY" tests/check_ffmpeg_abort_part.py
 run "视频转笔记（下载 / 转写 / 总结 / 导图）" "$PY" tests/check_video_note.py
+# 上面那一套验的是「续跑能省下重传」，这一条验的是「什么时候不该省」：`run()` 的
+# resume 默认 True、界面上没有开关能关掉它，而整份暂存（transcript.json）的模型凭据
+# 原先只读顶层 `asr_cfg["model"]` —— 界面（#asrModel）只填 `asr.cloud.model`，那一格
+# 从来不存在，于是暂存里 model 永远是空串，用户在设置里换了模型、重跑同一条视频，
+# 界面上写着「沿用上回转好的 N 段」、拿到的还是旧模型的转写，且没有按钮能掰回来。
+# 这一条把「凭据认识 cloud.model」与「换模型真的重转、同模型仍然复用」端到端钉住，
+# 并留一条「旧尺子在界面形状下量不出模型变化」的对照。纯离线沙盒，归 --fast 静态段。
+run "视频转笔记换模型（换了 ASR 模型不许拿旧暂存凑数）" "$PY" tests/check_video_resume_model.py
 # 导图的输入是「别人家的 JSON」：节点里本该是数组的 `children` 偶尔写成标量
 # （`"children": 1`）。`_normalize_nodes` / `_flatten_tree` 原来直接迭代它，int 上抛
 # TypeError，穿出 `_normalize_mindmap` 后被 `build_mindmap` 当成「模型两次都不配合」——

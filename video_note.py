@@ -911,7 +911,9 @@ def _transcribe_cloud(audio_path, cloud, model, lang, progress, should_stop,
     endpoint = _transcriptions_url(cloud.get("url"))
     if not endpoint:
         raise ValueError("云转写的地址要写成 http:// 或 https:// 开头")
-    name = model or (cloud.get("model") or "").strip() or DEFAULT_CLOUD_MODEL
+    # 上线用的名字与暂存对比（`_asr_model`）必须是同一把尺子：界面只填
+    # `cloud.model`，这里少认它一格，换模型就会被旧暂存顶掉。
+    name = _cloud_model({"model": model, "cloud": cloud})
     key = (cloud.get("key") or "").strip()
     parts = [audio_path]
     if os.path.getsize(audio_path) > CLOUD_CHUNK_BYTES:
@@ -1920,7 +1922,29 @@ def _asr_lang(spoken, asr_cfg):
 
 
 def _asr_model(asr_cfg):
-    return str((asr_cfg or {}).get("model") or "")
+    """这次转写用的是哪个模型：顶层 `model` 优先，其次 `cloud.model`，都没填就是空串。
+
+    为什么不能只看顶层那一格：界面（`#asrModel` → `asr_model`）与
+    `ui_server.asr_opts_for_task` 只填 `asr.cloud.model`，顶层 `model` 从来不存在。
+    只看顶层时这个计数器永远是空串，而它正是整份暂存（`_staged_transcript`）判断
+    「这份转写还算不算数」的凭据 —— 用户在设置里换了模型、重跑同一条视频，
+    暂存照样认下旧模型那份，进度还说着「沿用上回」，换了模型等于没换。
+    模型与语言两把尺子必须同形：语言那一把读的就是配置里真正生效的那个值。
+    """
+    cfg = asr_cfg or {}
+    cloud = cfg.get("cloud") if isinstance(cfg.get("cloud"), dict) else {}
+    return (str(cfg.get("model") or "").strip()
+            or str(cloud.get("model") or "").strip())
+
+
+def _cloud_model(asr_cfg):
+    """真正发给云接口的模型名：配置里没有就落默认那一个。
+
+    与 `_asr_model` 同一把尺子，只多一个默认值 —— 暂存对比记的是「配置里写的模型」，
+    上线用的是「配置里写的模型或默认那个」，两处读的字段必须一致，否则一份旧口径的
+    暂存会被当成新模型的产物。
+    """
+    return _asr_model(asr_cfg) or DEFAULT_CLOUD_MODEL
 
 
 def _staged_transcript(task_dir, asr_cfg):
