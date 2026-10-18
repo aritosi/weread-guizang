@@ -387,8 +387,8 @@ _YT_WHY = (
     "为什么是这一页：youtube.com 的正文不在 HTML 里，而在页面自带的一坨 JSON 里，"
     "由它自己的脚本现渲染；归藏的 iframe 是不透明源，那些脚本一碰本地存储就断，"
     "所以原样送回来只会是一片空白。这里读的是同一坨 JSON，铺的是自己的版式 —— "
-    "标题、频道、时长、缩略图都是油管给的原文。想整本转成笔记，点卡片上那颗"
-    "「转成笔记」，链接会送回「视频转笔记」那一屏。")
+    "标题、频道、时长、缩略图都是油管给的原文。点任意一支的封面或标题，链接就送回"
+    "「视频转笔记」那一屏并当场开跑，不用先打开播放页；想看看它的原页再点「在油管打开」。")
 
 _YT_STYLE = """
 html{color-scheme:light dark}
@@ -448,14 +448,18 @@ def _yt_page(cards, note):
         lg = ("<span class=\"lg\">%s</span>" % _html.escape(c["length"], quote=True)
               if c.get("length") else "")
         items.append(
-            "<article class=\"card%s\"><a class=\"th\" href=\"%s\">%s%s</a>"
-            "<div class=\"bd\"><b class=\"ti\">%s</b>"
+            "<article class=\"card%s\">"
+            "<a class=\"th\" href=\"%s\" data-gz-use"
+            " title=\"点这张封面就把这一支转成笔记\">%s%s</a>"
+            "<div class=\"bd\">"
+            "<a class=\"ti\" href=\"%s\" data-gz-use"
+            " title=\"点标题就把这一支转成笔记\">%s</a>"
             "<span class=\"me\">%s</span>"
-            "<span class=\"go\"><a href=\"%s\">打开这支</a>"
+            "<span class=\"go\"><a href=\"%s\">在油管打开</a>"
             "<a class=\"use\" href=\"%s\" data-gz-use"
-            " title=\"把这条链接送回「视频转笔记」，回去点手指就开始转\">转成笔记</a>"
+            " title=\"把这条链接送回「视频转笔记」并当场开始转写\">一键转成笔记</a>"
             "</span></div></article>"
-            % (" hero" if c.get("hero") else "", href, img, lg,
+            % (" hero" if c.get("hero") else "", href, img, lg, href,
                _html.escape(c["title"], quote=True),
                _html.escape(" · ".join(bits), quote=True), href, href))
     grid = ("<div class=\"grid\">%s</div>" % "".join(items)) if items \
@@ -529,7 +533,7 @@ def yt_static(text, url, note=None):
     if hero:
         cards.insert(0, hero)
     if note is None:
-        note = "从这页挑一支，点「转成笔记」把它送回工作台。"
+        note = "点任意一支的封面或标题，就把它送回工作台转成笔记。"
         if not cards:
             note = _YT_EMPTY_NOTE
     return _yt_page(cards, note)

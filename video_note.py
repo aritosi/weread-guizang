@@ -74,6 +74,18 @@ UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 "
       "(KHTML, like Gecko) Version/17.0 Safari/605.1.15")
 BILIBILI_HEADERS = {"User-Agent": UA, "Referer": "https://www.bilibili.com/"}
 
+# YouTube 要的口吻与 B 站不同：别带 B 站的 Referer（那是另一种「一眼脚本」的破绽），
+# 补上真实浏览器都会带的 Accept-Language。这不是伪装登录，只是别让正常的取音频被
+# 当成机器人请求拦下来（用户报的「无法读取 / 需要登录」里有一半是这一种）。
+YT_HEADERS = {"User-Agent": UA, "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8"}
+
+# 内置浏览器那份持久化 Chromium 档案（取书登录态也在里头）。YouTube 要登录 / 年龄
+# 确认时，归藏只从这里借用户自己的 cookie：只读 youtube / google 这一族，读不到就当
+# 未登录照常报人话。绝不代填账号、不解验证码、不绕年龄门 —— 借的是登录态，不是绕过。
+# 档案位置可用 GUIZANG_BROWSER_PROFILE 指到别处（装了多份或想单独登一次时用）。
+COOKIE_DOMAINS = ("youtube.com", "google.com", "googlevideo.com")
+_COOKIE_FILE = {"tried": False, "path": ""}
+
 # 云转写的缺省模型名：用户在设置里没填模型时用它。地址与 Key 由用户自己填，
 # 归藏不代管、不内置任何厂商（1.0.8 起本地 Whisper 已整体移除）。
 DEFAULT_CLOUD_MODEL = "whisper-1"
@@ -355,17 +367,151 @@ def _bilibili_page(value):
 
 # ─────────────────────────── yt-dlp ───────────────────────────
 
-def _ydl_options(extra=None):
-    """yt-dlp 的公共选项（照抄 bilisum 的稳健参数：重试、超时、UA、Referer）。"""
+def _is_youtube(url):
+    """这台站是不是 YouTube（决定用哪套请求头、要不要借登录态）。
+
+    按主机名精确认：`youtube.com.evil.cn` 这种只是名字里带一串的仿冒不能放进来
+    （与 web_browse.is_youtube 同一把尺子）。
+    """
+    try:
+        host = (urllib.parse.urlparse(url or "").netloc or "").lower()
+    except ValueError:
+        return False
+    host = host.rsplit("@", 1)[-1].split(":", 1)[0]
+    if host in ("youtube.com", "www.youtube.com", "m.youtube.com",
+                "music.youtube.com", "youtu.be", "www.youtu.be"):
+        return True
+    return host.endswith(".youtube.com")
+
+
+def _headers_for(url):
+    return dict(YT_HEADERS if _is_youtube(url) else BILIBILI_HEADERS)
+
+
+def browser_profile_dir():
+    """内置浏览器那份持久化档案的根目录。"""
+    env = (os.environ.get("GUIZANG_BROWSER_PROFILE") or "").strip()
+    if env:
+        return os.path.expanduser(env)
+    return os.path.join(DATA_DIR, "cache", "browser_profile")
+
+
+def _chromium_cookie_dir(root):
+    """Playwright 的 `launch_persistent_context(user_data_dir=root)` 把 cookie 库
+    放在 `root/Default/Cookies`；也有直接把库丢在根上的写法，两种都认。"""
+    default = os.path.join(root, "Default")
+    return default if os.path.isfile(os.path.join(default, "Cookies")) else root
+
+
+def _cookie_domain_ok(domain):
+    h = str(domain or "").lstrip(".").lower()
+    return any(h == d or h.endswith("." + d) for d in COOKIE_DOMAINS)
+
+
+def _browser_cookies(profile_dir):
+    """用 yt-dlp 自己那套读 Chromium 档案（含平台各自的解密）。"""
+    from yt_dlp.cookies import extract_cookies_from_browser
+    return extract_cookies_from_browser("chromium", profile=profile_dir)
+
+
+def _write_cookie_file(cookies, out_path):
+    """写成 Netscape 那一份（yt-dlp 的 `cookiefile` 吃的就是它）。"""
+    lines = ["# Netscape HTTP Cookie File", ""]
+    kept = 0
+    for c in cookies:
+        domain = str(getattr(c, "domain", "") or "")
+        name = str(getattr(c, "name", "") or "")
+        value = str(getattr(c, "value", "") or "")
+        if not domain or not name or any(ch in name + value for ch in ("\t", "\n", "\r")):
+            continue
+        flag = "TRUE" if domain.startswith(".") else "FALSE"
+        secure = "TRUE" if getattr(c, "secure", False) else "FALSE"
+        try:
+            expires = int(getattr(c, "expires", 0) or 0)
+        except (TypeError, ValueError):
+            expires = 0
+        path = str(getattr(c, "path", "") or "/") or "/"
+        lines.append("\t".join([domain, flag, path, secure, str(expires), name, value]))
+        kept += 1
+    if not kept:
+        return 0
+    with open(out_path, "w", encoding="utf-8", newline="\n") as f:
+        f.write("\n".join(lines) + "\n")
+    return kept
+
+
+def export_browser_cookies(profile_dir, out_path):
+    """把档案里 youtube / google 那一族的 cookie 导出成 Netscape 文件，回条数。
+
+    只导出这一族：别的站点的登录态与视频这一步无关，不跟着走。没有就回 0 且不写文件。
+    """
+    jar = _browser_cookies(profile_dir)
+    wanted = [c for c in jar if _cookie_domain_ok(getattr(c, "domain", ""))]
+    return _write_cookie_file(wanted, out_path)
+
+
+def cookie_file():
+    """一次性把内置浏览器档案里的 YouTube 登录态导出来；回空串表示没有。
+
+    结果记在进程内（一次任务跑一条链接，导一次就够）。导出失败一律当没有 ——
+    取音频这条线不能因为读不到档案就整个坏掉。
+    """
+    if _COOKIE_FILE["tried"]:
+        return _COOKIE_FILE["path"]
+    _COOKIE_FILE["tried"] = True
+    _COOKIE_FILE["path"] = ""
+    root = browser_profile_dir()
+    if not os.path.isdir(root):
+        return ""
+    out = os.path.join(TMP_ROOT, "browser_cookies.txt")
+    try:
+        os.makedirs(TMP_ROOT, exist_ok=True)
+        if export_browser_cookies(_chromium_cookie_dir(root), out) > 0:
+            _COOKIE_FILE["path"] = out
+    except Exception:          # noqa: BLE001 —— 读不到 / 解不开都只是「没登录态」
+        _COOKIE_FILE["path"] = ""
+    return _COOKIE_FILE["path"]
+
+
+# 已经认过一遍的元信息：`plan()` 取一次，`download_audio()` 直接拿去下，不必为同一
+# 条链接再敲一次门（用户报的「每次取回太慢」有一半是这一次重复的解析）。进程内缓存，
+# 一次任务只跑一条链接，留几条足够，别把大 dict 攒成内存漏。
+_META_CACHE = {}
+_META_CACHE_ORDER = []
+_META_CACHE_MAX = 4
+
+
+def _remember_meta(url, info):
+    key = url or ""
+    if not key or not isinstance(info, dict):
+        return
+    _META_CACHE[key] = info
+    if key in _META_CACHE_ORDER:
+        _META_CACHE_ORDER.remove(key)
+    _META_CACHE_ORDER.append(key)
+    while len(_META_CACHE_ORDER) > _META_CACHE_MAX:
+        _META_CACHE.pop(_META_CACHE_ORDER.pop(0), None)
+
+
+def _ydl_options(extra=None, url=""):
+    """yt-dlp 的公共选项（照抄 bilisum 的稳健参数：重试、超时、UA、Referer）。
+
+    YouTube 那一站额外带上用户自己档案里的登录态（有的话）—— 这是「要登录 / 年龄确认」
+    那条正路的唯一来源，不代填、不绕过。
+    """
     opts = {
         "quiet": True,
         "no_warnings": True,
-        "http_headers": dict(BILIBILI_HEADERS),
+        "http_headers": _headers_for(url),
         "retries": 3,
         "extractor_retries": 3,
         "fragment_retries": 3,
         "socket_timeout": 30,
     }
+    if _is_youtube(url):
+        cf = cookie_file()
+        if cf:
+            opts["cookiefile"] = cf
     opts.update(extra or {})
     return opts
 
@@ -381,18 +527,28 @@ def _ydl_class():
 def _ydl_error(err):
     """yt-dlp 的报错翻成用户看得懂的话，别把 traceback 甩给用户。"""
     text = str(err)
-    if "HTTP Error 412" in text and "ili" in text.lower():
+    lower = text.lower()
+    if "HTTP Error 412" in text and "ili" in lower:
         return ValueError("B 站把这次请求拦了（412 风控）。过一会儿再试，"
                           "或者换个网络；要登录才给看的视频得先自己下好再导进来。")
-    if "Sign in to confirm" in text or "age" in text.lower() and "restricted" in text.lower():
-        return ValueError("这个视频要登录或年龄确认，归藏这边取不到它的音频。")
+    if "not a bot" in lower or "confirm you" in lower and "bot" in lower:
+        # 这是油管的机器人校验，不是年龄门。归藏不冒充、不绕验证：改用自己的登录态
+        # （内置浏览器那份档案里的）再取一次。
+        return ValueError("油管把这次请求当成机器人了（它自己的原话：%s）。"
+                          "归藏只会借你自己浏览器档案里的登录态去取，不绕这一步；"
+                          "先在归藏用的那份浏览器里登录油管，再回来重试。"
+                          % _clip(text, 120))
+    if "sign in to confirm" in lower or ("age" in lower and "restricted" in lower) \
+            or "members only" in lower or "private video" in lower:
+        return ValueError("这个视频要登录或年龄确认。归藏只用你自己浏览器档案里的登录态"
+                          "去取，不绕过平台这一步；先登录油管，或把视频下好再导进来。")
     return ValueError("取视频信息没成：%s" % _clip(text, 160))
 
 
 def probe_meta(url):
     """只取元信息，不下载。返回 yt-dlp 的 info dict（多 P 时带 entries）。"""
     YoutubeDL = _ydl_class()
-    opts = _ydl_options({"noplaylist": False, "skip_download": True})
+    opts = _ydl_options({"noplaylist": False, "skip_download": True}, url)
     try:
         with YoutubeDL(opts) as ydl:
             info = ydl.extract_info(url, download=False)
@@ -400,6 +556,7 @@ def probe_meta(url):
         raise _ydl_error(e) from e
     if not isinstance(info, dict):
         raise ValueError("这个链接没读出视频信息，可能不是视频页")
+    _remember_meta(url, info)
     return info
 
 
@@ -409,6 +566,9 @@ def download_audio(url, task_dir, progress=None, should_stop=None):
     format 优先 m4a —— 云转写的接口直接吃它，不需要 ffmpeg 转码，所以 ffmpeg 没装时
     这条线照样能跑（只有音频大到要切段时才用得上 ffmpeg）。ffmpeg 装着就顺手告诉
     yt-dlp 它在哪，合并流时用得上。
+
+    `plan()` 刚认过的那份元信息直接拿来下（`process_ie_result`），省掉同一条链接
+    第二次解析；复用不成时退回整体再取一次，正确性优先。
     """
     YoutubeDL = _ydl_class()
     os.makedirs(task_dir, exist_ok=True)
@@ -438,14 +598,26 @@ def download_audio(url, task_dir, progress=None, should_stop=None):
         "outtmpl": outtmpl,
         "noplaylist": True,
         "progress_hooks": [hook],
-    })
+    }, url)
     try:
         opts["ffmpeg_location"] = ffmpeg_tool.ffmpeg_path()
     except ValueError:
         pass                              # 没有 ffmpeg 也没关系，m4a 直接给 ASR 解码
+    cached = _META_CACHE.get(url or "")
     try:
-        with YoutubeDL(opts) as ydl:
-            ydl.download([url])
+        if cached is not None:
+            try:
+                with YoutubeDL(opts) as ydl:
+                    ydl.process_ie_result(cached, download=True)
+            except Aborted:
+                raise
+            except Exception:
+                # 复用的那份下不下来（格式已过期、清单变了）就整体再取一次。
+                with YoutubeDL(opts) as ydl:
+                    ydl.download([url])
+        else:
+            with YoutubeDL(opts) as ydl:
+                ydl.download([url])
     except Aborted:
         raise
     except Exception as e:
