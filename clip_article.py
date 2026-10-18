@@ -500,6 +500,12 @@ class _TreeBuilder(html.parser.HTMLParser):
             self.title_parts.append(data)
             return
         if not data.strip():
+            # 纯空白文本节点在 HTML 里是有意义的一格：`<span>beta</span> <span>gamma</span>`
+            # 中间那一下浏览器会渲染成一个空格。整块丢掉就把两个词粘成 `betagamma`，
+            # 行内加粗 / 斜体也会连成 `**quick***brown*`（星号当场显示出来）。收成一个
+            # 空格再进树；块级元素之间那份空白转 Markdown 时会被 `\n{3,}` 那一档吃掉，
+            # 中英之间该有的间隔则照浏览器渲染保留。
+            self.cur.add_text(" ")
             return
         self.cur.add_text(data)
 
