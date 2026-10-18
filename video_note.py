@@ -435,8 +435,18 @@ def _write_cookie_file(cookies, out_path):
         kept += 1
     if not kept:
         return 0
-    with open(out_path, "w", encoding="utf-8", newline="\n") as f:
-        f.write("\n".join(lines) + "\n")
+    # 这份文件里是用户自己的登录 cookie：从创建那一刻就只给本人读写，别让同机
+    # 其他用户从 0644 的默认权限里捡走。已存在的旧文件也要收紧一次。
+    fd = os.open(out_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    try:
+        if hasattr(os, "fchmod"):
+            os.fchmod(fd, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
+            fd = None
+            f.write("\n".join(lines) + "\n")
+    finally:
+        if fd is not None:
+            os.close(fd)
     return kept
 
 

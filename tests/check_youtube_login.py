@@ -28,6 +28,7 @@ import atexit
 import os
 import pathlib
 import shutil
+import stat
 import sys
 import tempfile
 from types import SimpleNamespace
@@ -111,6 +112,10 @@ chk("写的是 Netscape 那副样子（域名 / 子域 / 路径 / 安全 / 过�
     and ".youtube.com\tTRUE\t/\tTRUE\t4102444800\tSID\tyt-secret" in body, body)
 chk("名字或值里带制表符 / 换行的整条丢掉（不给文件注入留口子）",
     "BAD\tNAME" not in body and "line\nbreak" not in body, body)
+if os.name != "nt":
+    mode = stat.S_IMODE(os.stat(out).st_mode)
+    chk("cookie 文件从创建起就是 0600（同机其他用户读不到登录态）",
+        mode == 0o600, oct(mode))
 
 # 一条都不匹配时不写文件、回 0
 _orig_browser_cookies = vn._browser_cookies
