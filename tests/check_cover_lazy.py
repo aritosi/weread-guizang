@@ -102,10 +102,10 @@ chk("coverField 存在（一本书的封面按需点亮）", bool(field), "找�
 chk("接线：revealInView 里顺手点亮封面（滚动 / 切回书架 / 后台标签页都从这儿过）",
     "paintCovers" in fn_body("revealInView"), "revealInView 没调 paintCovers")
 chk("接线：resize 时补一遍（放大窗口会多露一批卡）",
-    _has_listener("resize") and "paintCovers" in _listener_body("resize"),
+    _has_listener("resize") and ("paintCovers" in _listener_body("resize") or ("scheduleCovers" in _listener_body("resize") and "paintCovers" in fn_body("scheduleCovers"))),
     "resize 监听没接 paintCovers")
 chk("接线：标签页切回来补一遍（后台时 IntersectionObserver 不回调，封面会全空着）",
-    _has_listener("visibilitychange") and "paintCovers" in _listener_body("visibilitychange"),
+    _has_listener("visibilitychange") and ("paintCovers" in _listener_body("visibilitychange") or ("scheduleCovers" in _listener_body("visibilitychange") and "paintCovers" in fn_body("scheduleCovers"))),
     "visibilitychange 没接 paintCovers")
 chk("接线：书架每次建卡/重画之后立刻补一次（首屏不能等第一次滚动才点亮）",
     "paintCovers" in fn_body("revealOnScroll") or "paintCovers" in fn_body("renderShelfGrid"),

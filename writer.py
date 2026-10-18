@@ -24,11 +24,19 @@
 """
 
 import hashlib
+from contextlib import contextmanager
+from functools import wraps
 import json
 import os
 import re
+import threading
 import time
 import uuid
+
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
 
 import book_export
 import book_layout
@@ -557,6 +565,11 @@ def list_drafts(books_root):
         if b:
             out.append(b)
     out.sort(key=lambda x: -x["updated"])
+    order = load_loose_order(books_root)
+    if order:
+        ranks = {did: i for i, did in enumerate(order)}
+        # New drafts still appear first; saved manual order survives later edits.
+        out.sort(key=lambda x: (x["id"] in ranks, ranks.get(x["id"], 0)))
     return out
 
 
@@ -579,6 +592,30 @@ def list_drafts(books_root):
 
 BOOKS_NAME = "_books.json"
 BOOK_PREFIX = "bk_"
+_BOOKS_LOCK = threading.RLock()
+
+
+@contextmanager
+def _books_locked(books_root):
+    with _BOOKS_LOCK:
+        path = books_path(books_root) + ".lock"
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "a+b") as lock:
+            if fcntl:
+                fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                if fcntl:
+                    fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+
+
+def _book_mutation(fn):
+    @wraps(fn)
+    def locked(books_root, *args, **kwargs):
+        with _books_locked(books_root):
+            return fn(books_root, *args, **kwargs)
+    return locked
 
 
 def book_id_ok(bid):
@@ -597,6 +634,31 @@ def blank_book(title):
     now = int(time.time())
     return {"id": new_book_id(), "title": _drop_surrogates(str(title or "")).strip()[:60],
             "chapters": [], "created": now, "updated": now}
+
+
+def _load_book_data(books_root):
+    try:
+        with open(books_path(books_root), encoding="utf-8-sig") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def load_loose_order(books_root):
+    ids, seen = [], set()
+    for did in _as_list(_load_book_data(books_root).get("loose_order")):
+        if isinstance(did, str) and ok_id(did) and did not in seen:
+            if os.path.isdir(dir_of(books_root, did)):
+                seen.add(did)
+                ids.append(did)
+    return ids
+
+
+def loose_draft_ids(books_root, books=None):
+    books = load_books(books_root) if books is None else books
+    assigned = {did for b in books for did in b["chapters"]}
+    return [d["id"] for d in list_drafts(books_root) if d["id"] not in assigned]
 
 
 def load_books(books_root):
@@ -639,12 +701,16 @@ def load_books(books_root):
     return out
 
 
-def save_books(books_root, books):
+def save_books(books_root, books, loose_order=None):
     p = books_path(books_root)
     # 册账同样是 ensure_ascii=False 写的：一处落单的半个代理码点就能让整本册账
     # 写不出去（写作屏的书树跟着一起空），落盘前统一摘干净。
+    data = {"v": 1, "books": list(books or [])}
+    order = load_loose_order(books_root) if loose_order is None else list(loose_order)
+    if order:
+        data["loose_order"] = order
     _write_text_atomic(p, json.dumps(
-        _drop_surrogates({"v": 1, "books": list(books or [])}),
+        _drop_surrogates(data),
         ensure_ascii=False, indent=2))
     return True
 
@@ -666,6 +732,7 @@ def touch_book(book):
     return book
 
 
+@_book_mutation
 def create_book(books_root, title=""):
     books = load_books(books_root)
     book = touch_book(blank_book(title or "未命名的一本书"))
@@ -674,6 +741,7 @@ def create_book(books_root, title=""):
     return book
 
 
+@_book_mutation
 def rename_book(books_root, book_id, title):
     books = load_books(books_root)
     book = find_book(books, book_id)
@@ -688,6 +756,7 @@ def rename_book(books_root, book_id, title):
     return True, book
 
 
+@_book_mutation
 def delete_book(books_root, book_id):
     """只把这个「组」取消，章一篇都不动 —— 它们回到未归册那一堆里。"""
     books = load_books(books_root)
@@ -698,6 +767,7 @@ def delete_book(books_root, book_id):
     return True, {"msg": "已经不成书了，章节还在"}
 
 
+@_book_mutation
 def add_chapter(books_root, book_id, draft_id="", title=""):
     """往这本书里加一章：给稿号就归进来，不给就先建一篇空稿再归进来。
 
@@ -729,6 +799,7 @@ def add_chapter(books_root, book_id, draft_id="", title=""):
     return True, {"book": book, "id": did}
 
 
+@_book_mutation
 def remove_chapter(books_root, draft_id):
     """把这一章从书里拿出来（稿子留着）。"""
     books = load_books(books_root)
@@ -744,6 +815,7 @@ def remove_chapter(books_root, draft_id):
     return True, {"msg": "已经出册，稿子还在未归册那一堆里"}
 
 
+@_book_mutation
 def order_chapter(books_root, book_id, draft_id, delta):
     """章在书里挪一格：delta 是 ±1（上移 / 下移）。到顶到底就原样返回。"""
     books = load_books(books_root)
@@ -765,6 +837,40 @@ def order_chapter(books_root, book_id, draft_id, delta):
     touch_book(book)
     save_books(books_root, books)
     return True, {"book": book, "moved": True}
+
+
+@_book_mutation
+def move_chapter(books_root, draft_id, book_id="", before=""):
+    """Move a draft before a sibling (or append) with one atomic ledger write."""
+    if not ok_id(draft_id) or not load_meta(dir_of(books_root, draft_id)):
+        return False, {"msg": "这一章的稿子不在了"}
+    books = load_books(books_root)
+    target = find_book(books, book_id) if book_id else None
+    if book_id and not target:
+        return False, {"msg": "这本书不在了"}
+    loose = loose_draft_ids(books_root, books)
+    destination = list(target["chapters"] if target else loose)
+    if before and before not in destination:
+        return False, {"msg": "放置位置已改变，请重试"}
+    if before == draft_id:
+        return True, {"id": draft_id, "moved": False,
+                      "books": [book_detail(books_root, b) for b in books], "loose": loose}
+    previous = [(b["id"], list(b["chapters"])) for b in books]
+    previous_loose = list(loose)
+    for b in books:
+        if draft_id in b["chapters"]:
+            b["chapters"] = [did for did in b["chapters"] if did != draft_id]
+    loose = [did for did in loose if did != draft_id]
+    destination = target["chapters"] if target else loose
+    destination.insert(destination.index(before) if before else len(destination), draft_id)
+    moved = previous != [(b["id"], b["chapters"]) for b in books] or previous_loose != loose
+    if moved:
+        for b, (_, old_ids) in zip(books, previous):
+            if b["chapters"] != old_ids:
+                touch_book(b)
+        save_books(books_root, books, loose_order=loose)
+    return True, {"id": draft_id, "moved": moved,
+                  "books": [book_detail(books_root, b) for b in books], "loose": loose}
 
 
 def book_detail(books_root, book, with_text=False):

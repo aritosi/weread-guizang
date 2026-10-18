@@ -65,7 +65,7 @@ REPO = os.path.dirname(os.path.abspath(__file__))
 # 版本号只写在这一处：shell/build_macos.sh 会把它读出来盖进 Info.plist，
 # 打的 dmg 也就跟着叫同一个名字，不会再出现「界面一个数、访达另一个数」。
 # 界面「关于」那一类要显示它 —— 用户报问题时先问「你装的哪一版」，界面上能直接看到。
-VERSION = "1.2.2"
+VERSION = "1.2.3"
 
 # 这份 ui_server.py 的内容指纹。版本号比不出来的那部分靠它：源码直接跑的人
 # 改完代码未必动版本号，于是旧进程和新代码写着同一个数，谁也不认谁是旧的 ——
@@ -1403,8 +1403,8 @@ def writer_material(ids=(), book="", typed=""):
 
 def writer_do(body):
     """POST /api/writer：稿子那一层六种动作（建、存、改名、看快照、拍快照、回退），
-    书与章那一层七种（`book.create` / `rename` / `delete` / `add` / `remove` / `order` /
-    `merge`）。一个口分十三种，全靠 body 里的 `do` 认门。"""
+    书与章那一层八种（`book.create` / `rename` / `delete` / `add` / `remove` / `order` /
+    `move` / `merge`）。一个口分十四种，全靠 body 里的 `do` 认门。"""
     do = str((body or {}).get("do") or "")
     book = str((body or {}).get("id") or (body or {}).get("book") or "")
 
@@ -1492,6 +1492,13 @@ def writer_do(body):
     if do == "book.remove":
         ok, out = writer_mod.remove_chapter(OUT_DIR, str((body or {}).get("chapter") or ""))
         return {"ok": ok, "msg": out.get("msg") or "", "books": writer_book_rows()}
+
+    if do == "book.move":
+        ok, out = writer_mod.move_chapter(
+            OUT_DIR, str((body or {}).get("chapter") or ""),
+            str((body or {}).get("book") or ""),
+            str((body or {}).get("before") or ""))
+        return {"ok": ok, **out}
 
     if do == "book.order":
         ok, out = writer_mod.order_chapter(OUT_DIR, book,
@@ -2344,11 +2351,145 @@ def cover_path(book_id):
     return os.path.join(COVER_DIR, re.sub(r"[^0-9A-Za-z_-]", "_", book_id) + ".jpg")
 
 
-def ensure_cover(book_id):
+# 一次进书架会同时来几十张封面。每条都去 /book/info + 下载，会把微信那边
+# 当成爬虫、也会把本机线程池占满；6 路足够把一屏铺满，其余排队。
+_cover_slots = threading.BoundedSemaphore(6)
+_cover_fetch_lock = threading.Lock()
+_cover_fetching = {}
+_cover_failed = {}
+_COVER_MAX_BYTES = 8 * 1024 * 1024
+
+def cover_url_path(url):
+    """远端封面按 URL 哈希缓存，同一张图在不同书卡间共用。"""
+    h = hashlib.sha1(str(url).encode("utf-8")).hexdigest()[:24]
+    return os.path.join(COVER_DIR, "u_" + h)
+
+_COVER_MIME = {"image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"}
+
+def _cover_image_mime(raw):
+    if raw.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if raw.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if raw.startswith((b"GIF87a", b"GIF89a")):
+        return "image/gif"
+    if raw[:4] == b"RIFF" and raw[8:12] == b"WEBP":
+        return "image/webp"
+    if raw[4:8] == b"ftyp" and any(b in raw[8:32] for b in (b"avif", b"avis")):
+        return "image/avif"
+    return None
+
+def _weread_cover_url(url):
+    """The public cover proxy only accepts Tencent image CDNs."""
+    try:
+        u = urllib.parse.urlsplit(url)
+        host = (u.hostname or "").lower().rstrip(".")
+        return (u.scheme in ("http", "https") and u.username is None
+                and u.password is None and u.port in (None, 80, 443)
+                and (host == "wfqqreader-1252317822.image.myqcloud.com"
+                     or any(host == d or host.endswith("." + d)
+                            for d in ("qpic.cn", "qlogo.cn", "gtimg.cn", "wfqqreader.com"))))
+    except ValueError:
+        return False
+
+def fetch_cover_url(url):
+    """由后端代取一条远端封面，返回 (本地路径, MIME)；取不到回 None。
+
+    前端直接加载图床会被三件事挡掉：来路、CORS、混合内容。这一跳由后端带着
+    微信自己的 Referer 去取，取到就落盘，第二次秒开。地址先过剪藏那套内网闸，
+    避免「书架里的封面 URL」被换成内网地址后被本机代取。
+    """
+    url = str(url or "").strip()
+    if not url or len(url) > 4096 or not clip_article.safe_image_url(url):
+        return None
+    p = cover_url_path(url)
+    meta = p + ".type"
+    if os.path.isfile(p) and os.path.getsize(p) > 800:
+        try:
+            with open(meta, encoding="utf-8") as f:
+                mime = f.read().strip() or "image/jpeg"
+        except OSError:
+            mime = "image/jpeg"
+        return p, (mime if mime in _COVER_MIME else "image/jpeg")
+    with _cover_fetch_lock:
+        if _cover_failed.get(url, 0) > time.monotonic():
+            return None
+        waiter = _cover_fetching.get(url)
+        if waiter is None:
+            waiter = threading.Event()
+            _cover_fetching[url] = waiter
+            owner = True
+        else:
+            owner = False
+    if not owner:
+        waiter.wait(16)
+        # The owner publishes its result before waking other requests.
+        return getattr(waiter, "cover_result", None)
+    result = None
+    acquired = False
+    try:
+        acquired = _cover_slots.acquire(timeout=8)
+        if not acquired:
+            return None
+        clip_article.ensure_redirect_guard()
+        req = urllib.request.Request(url, headers={
+            "User-Agent": clip_article.UA,
+            "Referer": "https://weread.qq.com/",
+            "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+        })
+        with urllib.request.urlopen(req, timeout=6) as r:
+            headers = getattr(r, "headers", {})
+            size = headers.get("Content-Length")
+            if size is not None and int(size) > _COVER_MAX_BYTES:
+                return None
+            raw = r.read(_COVER_MAX_BYTES + 1)
+        if not 800 < len(raw) <= _COVER_MAX_BYTES:
+            return None
+        ctype = _cover_image_mime(raw)
+        if ctype is None:
+            return None
+        _write_bytes(p, raw)
+        try:
+            _write_bytes(meta, ctype.encode("ascii"))
+        except OSError:
+            pass
+        result = p, ctype
+        return result
+    except Exception:
+        return None
+    finally:
+        if acquired:
+            _cover_slots.release()
+        with _cover_fetch_lock:
+            if result is None:
+                now = time.monotonic()
+                if len(_cover_failed) >= 512:
+                    for key, until in list(_cover_failed.items()):
+                        if until <= now:
+                            del _cover_failed[key]
+                    if len(_cover_failed) >= 512:
+                        _cover_failed.pop(next(iter(_cover_failed)))
+                _cover_failed[url] = now + 20
+            else:
+                _cover_failed.pop(url, None)
+            waiter.cover_result = result
+            _cover_fetching.pop(url, None)
+            waiter.set()
+
+def ensure_cover(book_id, url_hint=""):
     """有 Key 时取官方封面并缓存到本地，返回本地路径；否则 None（前端回退到生成式封面）。"""
     p = cover_path(book_id)
     if os.path.isfile(p) and os.path.getsize(p) > 800:
         return p
+    if url_hint:
+        hit = fetch_cover_url(url_hint)
+        if hit:
+            try:
+                with open(hit[0], "rb") as f:
+                    _write_bytes(p, f.read())
+                return p
+            except OSError:
+                return hit[0]
     if not weread_key():
         return None
     try:
@@ -2356,12 +2497,14 @@ def ensure_cover(book_id):
         url = info.get("cover") or ""
         if not url:
             return None
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, timeout=20) as r:
-            raw = r.read()
-        if len(raw) > 800:
-            _write_bytes(p, raw)
-            return p
+        hit = fetch_cover_url(url)
+        if hit:
+            try:
+                with open(hit[0], "rb") as f:
+                    _write_bytes(p, f.read())
+                return p
+            except OSError:
+                return hit[0]
     except Exception:
         return None
     return None
@@ -5663,13 +5806,24 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/api/cover":
             book = q.get("book", [""])[0]
-            if not re.fullmatch(r"[0-9A-Za-z_-]{6,}", book or ""):
-                return self._send(404, "text/plain; charset=utf-8", "bad id")
-            p = ensure_cover(book)
-            if not p:
-                return self._send(404, "text/plain; charset=utf-8", "no cover")
+            remote = q.get("url", [""])[0]
+            if remote:
+                if not _weread_cover_url(remote):
+                    return self._send(404, "text/plain; charset=utf-8", "bad cover URL")
+                hit = fetch_cover_url(remote)
+                if not hit:
+                    return self._send(404, "text/plain; charset=utf-8", "no cover")
+                p, ctype = hit
+            else:
+                if not re.fullmatch(r"[0-9A-Za-z_-]{6,}", book or ""):
+                    return self._send(404, "text/plain; charset=utf-8", "bad id")
+                p = ensure_cover(book)
+                ctype = "image/jpeg"
+                if not p:
+                    return self._send(404, "text/plain; charset=utf-8", "no cover")
             with open(p, "rb") as f:
-                return self._send(200, "image/jpeg", f.read())
+                return self._send(200, ctype, f.read(),
+                                  {"Cache-Control": "public, max-age=604800"})
 
         if path == "/api/wallpaper":
             if not os.path.isfile(WALL_PATH):

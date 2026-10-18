@@ -1927,16 +1927,8 @@
   html[data-theme="dark"] .nbcard .cn span.lc{color:#7fd6a8; background:rgba(127,214,168,.13)}
 
   @keyframes arrive{from{opacity:0; transform:translateY(10px)}to{opacity:1; transform:none}}
-  /* 羊皮卷：书架卡滚进视口才从上往下摊开，同批内错开几十毫秒 */
-  @keyframes unfurl{
-    from{opacity:0; transform:perspective(700px) rotateX(-13deg) translateY(-10px) scaleY(.94); transform-origin:top center}
-    to{opacity:1; transform:none; transform-origin:top center}
-  }
-  .wcard.unfurl{animation:unfurl .52s var(--spring) backwards}
-  .wcard.pre{opacity:0; animation:none}   /* 还在视口外：先隐身，等滚到眼前再摊 */
-  /* 摊开着的时候：把 animation 关掉。CSS 动画在节点被重新插入 DOM 时会重跑，
-     不关的话点一下筛选（节点换位）整墙卡会一起重放一遍。 */
-  .wcard.rev{animation:none; opacity:1}
+  /* Shelf cards remain painted; scrolling never waits for an opacity animation. */
+  .sgrid > .wcard,.wcard.unfurl,.wcard.pre,.wcard.rev{animation:none; opacity:1}
   /* 侧边栏切换的整块交接改走 Web Animations API，见 slideView() */
 
   /* ── 书架样式二：左右叠卡（折叠屏那一下）────────
@@ -3375,7 +3367,7 @@
        胶囊是别人帮它位移的。写在常驻元素上会白占一层合成层，所以只点这两处。
      · 点按不要 300ms 延迟：触控板/触屏把点击判定成手势之前会先等一下。 */
   .wcard{contain:layout paint}
-  .strip{will-change:transform}
+  .wcard.open .strip{will-change:transform}
   .navpill{will-change:transform}
   button, input, select, textarea, label, .wcard, nav{touch-action:manipulation}
   body{-webkit-tap-highlight-color:transparent}
@@ -3402,7 +3394,7 @@
     50%{transform:translate3d(3.2vw,-2.6vh,0)}
     100%{transform:translate3d(0,0,0)}
   }
-  .ambient i{animation:drift 46s ease-in-out infinite}
+  .ambient i{animation:none}
   .ambient i:nth-child(2){animation-duration:58s; animation-delay:-13s}
   .ambient i:nth-child(3){animation-duration:66s; animation-delay:-27s}
   .tabs button:active, .seg button:active{transform:scale(.96)}
@@ -3606,7 +3598,7 @@
   .wrtiny:hover{background:var(--surface-2); color:var(--ink)}
   .wrtiny:active{transform:scale(.94)}
   .wrchaps{display:flex; flex-direction:column; gap:1px; padding:1px 0 5px 13px;
-    animation:wrUp .24s var(--spring) both}
+    animation:none}
   .wrempty{font-size:11px; color:var(--ink-3); padding:2px 10px 5px}
   /* 章那一行：章号用册账给的真顺序（前端数出来的会和「第 3 章」这种标题错开），
      右边标题与字数照常两行，整颗钮仍是一颗 .wrdoc。 */
@@ -3621,6 +3613,22 @@
   .wrdoc:hover{background:var(--surface-2)}
   .wrdoc:active{transform:scale(.985)}
   .wrdoc.on{background:var(--accent-soft); border-color:var(--accent)}
+  /* ── 写作树的拖拽排章 ───────────────────────
+     抓起的那一行淡下去当「原件」，落点画一条线：上/下半插到它前/后；
+     落在整本书上就是把整本点亮 —— 松手接到这本的章尾。 */
+  body.wrdragging{cursor:grabbing}
+  body.wrdragging .wrdoc,body.wrdragging .wrtomeh{-webkit-user-select:none; user-select:none}
+  .wrdoc.dragging{opacity:.42}
+  body.wrdragging .wrtree{scroll-behavior:auto}
+  .wrtree .loose .wrchaps{min-height:32px}
+  .wrdoc.dropbefore{box-shadow:inset 0 2px 0 var(--accent)}
+  .wrdoc.dropafter{box-shadow:inset 0 -2px 0 var(--accent)}
+  .wrtome.dropinto{background:var(--accent-soft); border-radius:10px}
+  .wrghost{position:fixed; left:0; top:0; z-index:800; pointer-events:none;
+    max-width:240px; padding:6px 11px; border-radius:9px; font-size:12.5px; font-weight:600;
+    background:var(--paper); border:1px solid var(--line-2); box-shadow:var(--shadow);
+    color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    opacity:.96}
   .wrdoc .wt{display:block; font-size:12.5px; font-weight:600; color:var(--ink);
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
   .wrdoc .wm{display:block; font-size:10.5px; color:var(--ink-3); margin-top:3px}
@@ -4909,23 +4917,20 @@ function readerIdOf(b) {
   const m = String(b.deepLink || '').match(/[?&]v=([0-9A-Za-z]+)/);
   return m ? m[1] : '';
 }
-function readerToBookMap() {
-  const m = {};
-  for (const b of (shelfBooks || [])) {
-    const r = readerIdOf(b);
-    if (r && b.bookId) m[r] = b.bookId;
+let shelfIdCache = {source: null, length: -1, readers: {}, books: {}};
+function shelfIdMaps() {
+  if (shelfIdCache.source !== shelfBooks || shelfIdCache.length !== shelfBooks.length) {
+    const readers = {}, books = {};
+    for (const book of shelfBooks) {
+      const id = readerIdOf(book);
+      if (id && book.bookId) { readers[id] = book.bookId; books[book.bookId] = id; }
+    }
+    shelfIdCache = {source: shelfBooks, length: shelfBooks.length, readers, books};
   }
-  return m;
+  return shelfIdCache;
 }
-/** 反向：书架 bookId → 阅读器 id（笔记索引用的是 bookId，本地目录用的是阅读器 id） */
-function bookToReaderMap() {
-  const m = {};
-  for (const b of (shelfBooks || [])) {
-    const r = readerIdOf(b);
-    if (r && b.bookId) m[b.bookId] = r;
-  }
-  return m;
-}
+function readerToBookMap() { return shelfIdMaps().readers; }
+function bookToReaderMap() { return shelfIdMaps().books; }
 
 /** 状态标签：本地目录 id、书架 bookId、阅读器 id 三种键都认 */
 function stateOf(x) {
@@ -5007,6 +5012,7 @@ function coverSrc(src) {
 function paintCovers(root, margin) {
   const box = root || document;
   if (!box.querySelectorAll) return 0;
+  if (typeof observeCovers === 'function') observeCovers(box);
   const h = window.innerHeight || document.documentElement.clientHeight;
   const m = margin == null ? h : margin;
   let k = 0;
@@ -5031,6 +5037,7 @@ function coverField(im) {
   const u = im.dataset.cover;
   if (!u) return;
   delete im.dataset.cover;
+  if (typeof coverObserver !== 'undefined' && coverObserver) { coverObserver.unobserve(im); coverObserved.delete(im); }
   im.src = u;
 }
 
@@ -5111,9 +5118,15 @@ function cardBits(b) {
     // 换回 404 —— 控制台多一条红字，卡片也照样落回生成式封面。所以只有配了 Key 才试。
     coverUrl: (typeof b.cover === 'string' && b.cover ? b.cover : '')
       || (keySet && storeId ? '/api/cover?book=' + encodeURIComponent(storeId) : ''),
-    // 远端那条 URL 打不开时（图床拒了来路、链接过期）再退到本地这口试一次；
-    // 只试一次，不然两个地址会互相打转；同样要有 Key 才有意义。
-    coverAlt: (typeof b.cover === 'string' && b.cover && storeId && keySet)
+    // 远端那条 URL 打不开时（图床拒了来路、链接过期）再退到本地这两口试：
+    //   ① /api/cover?url=<远端地址>：后端带着微信自己的 Referer 去取，落盘缓存 ——
+    //      「为我推荐 / 搜书」那些书封面不显示，根子就在图床只认微信来路，
+    //      浏览器直连必然 403，而这一条不需要 Key、也不受来路限制；
+    //   ② /api/cover?book=<书城短 id>：连远端地址都没有时才走（要 Key）。
+    // 顺序不能反：①只花一趟图床，②要先问 /book/info 再下载，慢一倍。
+    coverAlt: (typeof b.cover === 'string' && b.cover && /^https?:/i.test(coverSrc(b.cover)))
+      ? '/api/cover?url=' + encodeURIComponent(coverSrc(b.cover)) : '',
+    coverLocal: (storeId && keySet)
       ? '/api/cover?book=' + encodeURIComponent(storeId) : '',
     // 骨架形状：只有这三件事会让卡片结构变化（进度条、取书↔正文、取完↔没取完）
     shape: (busy ? 'b' : '-') + (mine ? (part ? 'p' : 'm') : '-'),
@@ -5168,11 +5181,11 @@ function shelfCard(b, bits) {
     // 走 extCoverImg：远端封面去掉 Referer（图床拒外站来路就是「有些封面加载不出来」
     // 的那一半原因），协议相对地址也顺手补成 https。
     const img = extCoverImg(coverUrl);
-    // 官方那条 URL 打不开就悄悄换成 /api/cover 再试一次（有些图床拒外链），
-    // 两条都落空才给生成式封面。
     let alt = t.coverAlt || '';
+    let localAlt = t.coverLocal && t.coverLocal !== coverUrl ? t.coverLocal : '';
     img.onerror = () => {
       if (alt) { const u = alt; alt = ''; img.src = u; return; }
+      if (localAlt) { const u = localAlt; localAlt = ''; img.src = u; return; }
       img.replaceWith(ph());
     };
     img.onload = () => img.classList.add('in');   // 到了再淡入，别「啪」地砸出来
@@ -5185,7 +5198,8 @@ function shelfCard(b, bits) {
   // 左上角徽标：只在「有话说」的时候挂上，平时靠 hover 才浮出，书架不吵
   if (t.tagText) {
     const tag = document.createElement('span');
-    tag.className = 'tag' + (t.tagCls ? ' ' + t.tagCls : '');
+    const cls = 'tag' + (t.tagCls ? ' ' + t.tagCls : '');
+    if (tag.className !== cls) tag.className = cls;
     tag.textContent = t.tagText;
     el.append(tag);
     // 正在取的那本、以及「取到一半」的那本，徽标常驻：进度和缺口都要一眼找得到，
@@ -5350,7 +5364,7 @@ let sideFootStamp = '';
    没重启。2026-10-07 用户报「左侧没有安娜的档案」就是它：导航那几格是后端 NAV_ITEMS
    给的，进程还是上一版，界面再怎么新也铺不出这一格，而两个版本号看着完全一样。
    后端因此多报一个 code_disk（磁盘上此刻的指纹），和它自己的 code 一比就露馅。 */
-const GUIZANG_PAGE = "1.2.2";
+const GUIZANG_PAGE = "1.2.3";
 const GZ = {back: "", code: "", disk: "", drift: false, stale: false,
             hid: false, swapping: false, why: "", prof: ""};
 
@@ -5473,7 +5487,13 @@ async function gzApi(path, body, ms) {
   return {ok: false, gz: 'bad', msg: '后端回的不是看得懂的话（HTTP ' + r.status + '）'};
 }
 
+let stateRequest = null;
 async function drawState(force) {
+  if (!stateRequest) stateRequest = drawStateSnapshot(force).finally(() => { stateRequest = null; });
+  return stateRequest;
+}
+
+async function drawStateSnapshot(force) {
   let s;
   try { s = await (await fetch('/api/state')).json(); }
   catch (e) {
@@ -8097,7 +8117,11 @@ function wireWrite() {
   // 树与面包屑上每一颗都走委托：改一次名、加一章都要重铺那一栏，
   // 重铺时逐颗重新接线，迟早漏一根（坞那一片早就改成委托了）。
   const tree = $wr('Tree');
-  if (tree) tree.addEventListener('click', wrTreeClick);
+  if (tree) {
+    tree.addEventListener('click', wrTreeClick);
+    tree.addEventListener('pointerdown', wrTreeDown);
+    tree.addEventListener('pointermove', wrTreeMove);
+  }
   const crum = $wr('Crum');
   if (crum) crum.addEventListener('click', wrCrumClick);
 
@@ -8257,9 +8281,12 @@ function paintWrTree() {
   }
   let s = '';
   tomes.forEach(bk => { s += wrBookHtml(bk); });
-  if (loose.length) s += wrLooseHtml(loose);
+  s += wrLooseHtml(loose);
   // 打字时每 1.4 秒存一次盘，这一栏跟着重铺一次：不记下滚动位置，
   // 用户刚滚到第五章就又弹回顶上，写长书的人会以为是树坏了。
+  if (wrDrag || wrPress) return;
+  if (box.dataset.treeHtml === s) return;
+  box.dataset.treeHtml = s;
   const keep = box.scrollTop;
   box.innerHTML = s;
   box.scrollTop = keep;
@@ -8331,15 +8358,146 @@ function wrChapterHtml(c) {
     + '<span class="wm">' + words + ' 字 · ' + esc(wrDay(upd)) + '</span></span></button>';
 }
 
+/* Dragging moves the original draft; membership and order are saved together. */
+let wrPress = null, wrDrag = null, wrSkipClick = 0, wrMoveBusy = false;
+let wrDragFrame = 0;
+
+function wrTreeDown(e) {
+  if ((e.pointerType === 'mouse' && e.button !== 0) || wrMoveBusy) return;
+  const row = e.target.closest && e.target.closest('.wrdoc[data-id]');
+  if (!row) return;
+  clearTimeout(wrPress && wrPress.timer);
+  wrPress = {row, x: e.clientX, y: e.clientY, pointerId: e.pointerId,
+    timer: setTimeout(() => wrGrab(row, e), DRAG_HOLD)};
+}
+
+function wrGrab(row, e) {
+  clearTimeout(wrPress && wrPress.timer);
+  wrPress = null;
+  if (wrDrag || wrMoveBusy || !row.isConnected) return;
+  wrDrag = {id: row.dataset.id, row, target: null, hint: null, x: e.clientX, y: e.clientY};
+  document.body.classList.add('wrdragging');
+  row.classList.add('dragging');
+  const ghost = document.createElement('div');
+  ghost.className = 'wrghost';
+  ghost.textContent = (wrDocOf(wrDrag.id) || {}).title || '无题';
+  document.body.append(ghost);
+  wrDrag.ghost = ghost;
+  try { row.setPointerCapture(e.pointerId); } catch (_) {}
+  wrGhost(e.clientX, e.clientY);
+  wrDragFrame = requestAnimationFrame(wrDragScroll);
+}
+
+function wrGhost(x, y) {
+  if (wrDrag && wrDrag.ghost) wrDrag.ghost.style.transform = `translate3d(${x + 14}px,${y + 12}px,0)`;
+}
+
+function wrHintsOff() {
+  if (wrDrag && wrDrag.hint) wrDrag.hint.classList.remove('dropbefore', 'dropafter', 'dropinto');
+}
+
+function wrDragTarget() {
+  if (!wrDrag) return;
+  const tree = $wr('Tree');
+  const el = document.elementFromPoint(wrDrag.x, wrDrag.y);
+  let target = null, hint = null, cls = '';
+  if (tree && el && tree.contains(el)) {
+    const row = el.closest('.wrdoc[data-id]');
+    if (row && row !== wrDrag.row) {
+      const r = row.getBoundingClientRect();
+      const before = wrDrag.y < r.top + r.height / 2;
+      target = {kind: 'row', row, before}; hint = row; cls = before ? 'dropbefore' : 'dropafter';
+    } else if (!row) {
+      const tome = el.closest('.wrtome');
+      if (tome) { target = {kind: 'tome', tome}; hint = tome; cls = 'dropinto'; }
+    }
+  }
+  if (hint !== wrDrag.hint || cls !== wrDrag.hintClass) {
+    wrHintsOff();
+    if (hint) hint.classList.add(cls);
+    wrDrag.hint = hint; wrDrag.hintClass = cls;
+  }
+  wrDrag.target = target;
+}
+
+function wrDragScroll() {
+  if (!wrDrag) return;
+  const tree = $wr('Tree');
+  const r = tree.getBoundingClientRect();
+  if (wrDrag.x >= r.left && wrDrag.x <= r.right && wrDrag.y >= r.top && wrDrag.y <= r.bottom) {
+    const delta = wrDrag.y < r.top + 32 ? -9 : wrDrag.y > r.bottom - 32 ? 9 : 0;
+    if (delta) { tree.scrollTop += delta; wrDragTarget(); }
+  }
+  wrDragFrame = requestAnimationFrame(wrDragScroll);
+}
+
+function wrTreeMove(e) {
+  if (wrPress && !wrDrag) {
+    if (Math.hypot(e.clientX - wrPress.x, e.clientY - wrPress.y) <= 6) return;
+    if (e.pointerType === 'touch') { clearTimeout(wrPress.timer); wrPress = null; return; }
+    wrGrab(wrPress.row, e);
+  }
+  if (!wrDrag) return;
+  e.preventDefault();
+  wrDrag.x = e.clientX; wrDrag.y = e.clientY;
+  wrGhost(e.clientX, e.clientY);
+  wrDragTarget();
+}
+
+function wrDragCancel() { wrRelease({type: 'pointercancel'}); }
+async function wrRelease(e) {
+  clearTimeout(wrPress && wrPress.timer);
+  wrPress = null;
+  if (!wrDrag) { requestAnimationFrame(paintWrTree); return; }
+  const drag = wrDrag;
+  wrHintsOff(); wrDrag = null;
+  cancelAnimationFrame(wrDragFrame);
+  document.body.classList.remove('wrdragging');
+  drag.row.classList.remove('dragging');
+  if (drag.ghost) drag.ghost.remove();
+  wrSkipClick = Date.now();
+  if ((e && e.type === 'pointercancel') || !drag.target) { paintWrTree(); return; }
+  const target = drag.target;
+  let bid = '', before = '';
+  if (target.kind === 'tome') bid = target.tome.dataset.b || '';
+  else {
+    const targetId = target.row.dataset.id;
+    const book = wrBookOf(targetId);
+    bid = book ? book.id : '';
+    const rows = (book ? book.chapters : wrLooseDocs()).map(row => row.id).filter(id => id !== drag.id);
+    const at = rows.indexOf(targetId);
+    before = target.before ? targetId : rows[at + 1] || '';
+  }
+  wrMoveBusy = true;
+  try {
+    await wrFlush();
+    if (WR.dirty || WR.saving || WR.creating) { whisper('稿子还没保存完成，请稍后再拖'); return; }
+    const result = await gzApi('/api/writer', {do: 'book.move', chapter: drag.id, book: bid, before}, 20000);
+    if (!result || !result.ok) { whisper((result && result.msg) || '没能保存这次移动'); return; }
+    if (result.books) WR.tomes = result.books;
+    if (result.loose) {
+      const positions = new Map(result.loose.map((id, i) => [id, i]));
+      WR.docs.sort((a, b) => (positions.has(a.id) ? positions.get(a.id) : 1e9) - (positions.has(b.id) ? positions.get(b.id) : 1e9));
+    }
+    if (bid) WR.open[String(bid)] = true;
+    paintWrTree(); paintWrCrum();
+    whisper(result.moved ? '归属和顺序已保存' : '顺序没有变化');
+  } finally { wrMoveBusy = false; paintWrTree(); }
+}
+document.addEventListener('pointerup', wrRelease);
+document.addEventListener('pointercancel', wrDragCancel);
+window.addEventListener('blur', wrDragCancel);
+
 async function wrTreeClick(e) {
+  // 拖完紧跟着的那一下 click：吞掉 —— 不吞的话松手会顺手把这一篇打开。
+  if (Date.now() - wrSkipClick < 400) return;
+  const tiny = e.target.closest('button[data-do="add"]');
+  if (tiny) { wrAddChapter(tiny.dataset.b); return; }
   const head = e.target.closest('.wrtomeh');
   if (head) {
     WR.open[String(head.dataset.key || '')] = head.dataset.on !== '1';
-    paintWrTree();
-    return;
+    paintWrTree(); return;
   }
-  const tiny = e.target.closest('button[data-do="add"]');
-  if (tiny) { wrAddChapter(tiny.dataset.b); return; }
   const row = e.target.closest('[data-do="open"]');
   if (row && row.dataset.id && row.dataset.id !== WR.id) wrOpen(row.dataset.id);
 }
@@ -10570,118 +10728,64 @@ async function refreshAll() {
 
 refreshBtn.onclick = e => { e.stopPropagation(); refreshAll(); };
 
-/** 羊皮卷：书架卡滚进视口从上往下摊开，同一屏露出的几张错开几十毫秒。
- *
- *  「常驻」= 每次滑回来都再摊一次，不是只认第一回。所以状态不是「这本书见过没」，
- *  而是「这张卡此刻在不在眼前」：滚远了复位成藏着的样子，再滑回来重新摊一遍。
- *  状态只存在节点 class 上（pre / unfurl / rev），不再另存一份 id 表 ——
- *  视图常驻后卡片节点会被复用、换位，另存一份反而要处理两边不同步。
- *
- *  两条观察器分工，中间留一段死区，免得在边界上来回抖：
- *    · 进场那条（视口内缩 4%）负责摊开；
- *    · 离场那条（视口外扩 260px）负责复位成 pre。
- *  再配一条同步兜底：画完立刻量一遍眼前这屏（后台标签页里 IntersectionObserver
- *  根本不回调，只靠观察器的话切回来会看见一屏空白）。 */
-let revealIO = null, restIO = null;
-// 「加载更多」那一条自己也会挂观察器。每次重画都换一颗新的按钮节点，旧观察器
-// 还盯着已经摘出文档的那颗 —— 不主动收掉就会一次重画攒一个（筛选时每敲一下都重画）。
+/* Shelf cards stay visible. Cover loading is observed independently of animation. */
+let revealIO = null;
 let moreIO = null;
 let revealGrid = null;
 
-/** 摊开这一张。已经在摊/已摊开着就别再动它（重设 animation-delay 会把动画顶回去）。 */
-function unfurl(card, k) {
-  if (card.classList.contains('unfurl') || card.classList.contains('rev')) return;
-  card.style.animationDelay = (k % 6) * 50 + 'ms';
-  card.classList.remove('pre');
-  card.classList.add('unfurl');
+function unfurl(card) {
+  card.classList.remove('pre', 'unfurl');
+  card.classList.add('rev');
 }
 
-/** 复位成「藏着」：等下次滑回来再摊。正在摊的那一下不打断，等它放完再复位。 */
-function conceal(card) {
-  if (!card.classList.contains('rev')) return;
-  card.classList.remove('rev');
-  card.classList.remove('unfurl');
-  card.classList.add('pre');
-}
-
-// 摊完了打个 rev 记号（同时把这一下的动画关掉）。之后它挪位置、被重新插入
-// DOM 都不会自己重跑 —— 重播只由「滚出视野再滚回来」触发。
-$('#view').addEventListener('animationend', e => {
-  const c = e.target;
-  if (!c.classList || !c.classList.contains('wcard')) return;
-  if (e.animationName !== 'unfurl') return;
-  c.classList.add('rev');
-});
-
-/** pane 藏着（hidden → 没有布局盒）时不要白量，等切回来看。 */
 function paneVisible(name) {
   const p = PANES[name];
   return !!p && p.offsetParent !== null;
 }
 
-/** 把此刻落在视口里的卡摊开。这是观察器的替补：滚动、改窗口大小、
- *  标签页切回来、切回书架时各兜一遍（观察器在后台标签页里根本不回调）。
- *  顺手把该亮的封面点亮 —— 摊开与封面是同一条「滚到眼前」的判据，分开写两次
- *  迟早有一边漏接（以前就只有摊开，封面每批全砸出去了）。 */
 function revealInView() {
   if (!revealGrid || !revealGrid.isConnected || !paneVisible('shelf')) return 0;
-  const h = window.innerHeight || document.documentElement.clientHeight;
-  let k = 0;
-  for (const c of revealGrid.querySelectorAll('.wcard')) {
-    if (c.classList.contains('unfurl') || c.classList.contains('rev')) continue;
-    const r = c.getBoundingClientRect();
-    if (r.top >= h * .96 || r.bottom <= 0) continue;   // 还没滚到 / 已经滚出上面
-    unfurl(c, k++);
-  }
-  paintCovers(revealGrid, h);                          // 封面跟着这一批一起亮
-  return k;
+  return paintCovers(revealGrid);
 }
 
 function revealOnScroll(grid) {
   revealGrid = grid;
-  if (revealIO) { revealIO.disconnect(); revealIO = null; }
-  if (restIO) { restIO.disconnect(); restIO = null; }
+  for (const card of grid.children) if (!card.classList.contains('rev')) unfurl(card);
+}
 
-  // 先同步过一遍：刚好露在眼前的摊开，还在下面的藏好。
-  const h = window.innerHeight || 800;
-  const visible = paneVisible('shelf');
-  let k = 0;
-  for (const c of grid.querySelectorAll('.wcard')) {
-    if (c.classList.contains('unfurl') || c.classList.contains('rev')) continue;
-    if (visible && c.getBoundingClientRect().top < h * .92) unfurl(c, k++);
-    else c.classList.add('pre');
-  }
-
+let coverObserver = null;
+const coverObserved = new Set();
+function observeCovers(root) {
   if (!('IntersectionObserver' in window)) return;
-  revealIO = new IntersectionObserver(entries => {
-    let k = 0;
-    for (const en of entries) if (en.isIntersecting) unfurl(en.target, k++);
-  }, {rootMargin: '0px 0px -4% 0px', threshold: .06});
-  restIO = new IntersectionObserver(entries => {
-    for (const en of entries) if (!en.isIntersecting) conceal(en.target);
-  }, {rootMargin: '260px 0px 260px 0px', threshold: 0});
-  for (const c of grid.querySelectorAll('.wcard')) {
-    revealIO.observe(c);
-    restIO.observe(c);
+  if (!coverObserver) coverObserver = new IntersectionObserver(entries => {
+    for (const en of entries) {
+      const im = en.target;
+      const card = im.closest('.wcard') || im;
+      if (!im.isConnected) { coverObserver.unobserve(im); coverObserved.delete(im); continue; }
+      if (en.isIntersecting && card.offsetParent !== null && card.getAttribute('aria-hidden') !== 'true') coverField(im);
+    }
+  }, {rootMargin: '800px 0px', threshold: 0});
+  for (const im of coverObserved) {
+    if (!im.isConnected || !im.hasAttribute('data-cover')) {
+      coverObserver.unobserve(im); coverObserved.delete(im);
+    }
+  }
+  for (const im of root.querySelectorAll('img[data-cover]')) {
+    if (!coverObserved.has(im)) { coverObserved.add(im); coverObserver.observe(im); }
   }
 }
 
-// 观察器失灵/后台标签页时，靠这三个事件把该展开的补上。
-// 这里不用 requestAnimationFrame 节流：标签页在后台时 rAF 一次都不会回调，
-// 用户切回来就会看见一整墙空白。改成「按时间节流 + 落定后再补一次」。
-let revealLast = 0, revealSettle = 0;
-window.addEventListener('scroll', () => {
-  const now = Date.now();
-  if (now - revealLast > 70) { revealLast = now; revealInView(); }
-  if (revealSettle) return;
-  revealSettle = setTimeout(() => {
-    revealSettle = 0; revealLast = Date.now(); revealInView();
-  }, 150);
-}, {passive: true});
-window.addEventListener('resize', () => { paintCovers(); revealInView(); });
-document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) { paintCovers(); revealInView(); }
-});
+let coverPaintFrame = 0;
+function scheduleCovers() {
+  if (coverPaintFrame) return;
+  coverPaintFrame = requestAnimationFrame(() => { coverPaintFrame = 0; paintCovers(); });
+}
+// Capture nested scrollers as well as window scrolling on older engines.
+document.addEventListener('scroll', () => {
+  if (!('IntersectionObserver' in window)) scheduleCovers();
+}, {capture: true, passive: true});
+window.addEventListener('resize', () => { scheduleCovers(); }, {passive: true});
+document.addEventListener('visibilitychange', () => { if (!document.hidden) scheduleCovers(); });
 
 /* ── 书架显示样式：瀑布 / 叠卡 ─────────────
    瀑布是上下滚的羊皮卷；叠卡一次放大一本，右侧摊三张（还没读的）、左侧摊三张
@@ -10804,7 +10908,6 @@ function renderShelfStack(wrap, shown) {
   // 摊开动画是瀑布那套（按滚动位置点亮），叠卡用不着，观察器先关掉别来抢 opacity
   revealGrid = null;
   if (revealIO) { revealIO.disconnect(); revealIO = null; }
-  if (restIO) { restIO.disconnect(); restIO = null; }
   let box = wrap.querySelector('.sstack');
   if (!box) {
     wrap.innerHTML = '<div class="sstack"><div class="sstage"></div>'
@@ -10836,7 +10939,10 @@ function renderShelfStack(wrap, shown) {
  *  只补新增的、只删消失的 —— 这是「点一下不闪」的关键一步。 */
 function fillGrid(grid, items) {
   const have = new Map();
-  for (const c of [...grid.children]) have.set(c.dataset.id, c);
+  for (const c of [...grid.children]) {
+    if (!c.dataset.id) { c.remove(); continue; }
+    have.set(c.dataset.id, c);
+  }
   const order = [];
   for (const b of items) {
     const t = cardBits(b);
@@ -10846,8 +10952,11 @@ function fillGrid(grid, items) {
     order.push(c);
   }
   have.forEach(c => c.remove());
-  const cur = [...grid.children];
-  if (cur.length !== order.length || cur.some((c, i) => c !== order[i])) grid.append(...order);
+  let cursor = grid.firstElementChild;
+  for (const card of order) {
+    if (card === cursor) cursor = cursor.nextElementSibling;
+    else grid.insertBefore(card, cursor);
+  }
   return grid;
 }
 
@@ -10916,7 +11025,7 @@ function renderShelfGrid() {
     const btn = document.createElement('button');
     btn.textContent = `加载更多（还有 ${all.length - shown.length} 本）`;
     btn.onclick = () => {
-      shelfShown += SHELF_BATCH * 2;
+      shelfShown += SHELF_BATCH;
       renderShelfGrid();
     };
     more.append(btn);
@@ -10926,7 +11035,7 @@ function renderShelfGrid() {
       moreIO = new IntersectionObserver(es => {
         if (es.some(x => x.isIntersecting)) {
           if (moreIO) { moreIO.disconnect(); moreIO = null; }
-          shelfShown += SHELF_BATCH * 2;
+          shelfShown += SHELF_BATCH;
           renderShelfGrid();
         }
       }, {rootMargin: '320px'});
@@ -16145,6 +16254,7 @@ function paintPick(body) {
   fillGrid(grid, pickList.map(x => x.bookInfo || x.book || x));
   [...grid.children].forEach((c, i) => fxIn(c, i));
   addShelfButtons(grid);
+  paintCovers(grid);
 }
 
 /** 卡片动条上补一颗「加入书架」：搜来的、推荐的书多半还没进微信书架，
@@ -16363,6 +16473,7 @@ function renderSearchView() {
       // 搜到的书也能一步加进微信书架：点开那张卡，抽屉里第一颗就是它。
       // 和「为我推荐」共用同一份逻辑，措辞与「已在书架」的判定只有一处（见 addShelfButtons）。
       addShelfButtons(g);
+      paintCovers(g);
       return books.length;
     } catch (e) {
       col.innerHTML = `<div class="emptyline"><b>搜索失败</b>${esc(e.message)}</div>`;
@@ -22450,7 +22561,8 @@ ntFloatsWire();     // 条目编辑器 / 模板 / 导图这三层是静态标记
 moveNavPill();      // 胶囊先就位，别等第一次点侧边栏时才凭空冒出来
 window.addEventListener('resize', moveNavPill);   // 换宽度时按钮行高会变，跟着重算
 wireNavAhead();     // 侧边栏悬停预判：指针停在哪儿，先替那一屏把数据拉起来
-setInterval(() => drawState(), 2600);
+setInterval(() => { if (!document.hidden) drawState(); }, 2600);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) drawState(); });
 drawState(true);
 /* 计时心跳：学习时长 = 这个页面开着的时间，写作时长 = 停在写作台的时间。
    间隔 30 秒一跳，每次报「距上一跳真实过了多久」而不是固定 30 —— 后台标签页

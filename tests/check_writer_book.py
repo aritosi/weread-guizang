@@ -19,8 +19,10 @@
 import json
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -220,6 +222,75 @@ chk("清单：要正文时才给正文",
     "text" in writer.book_detail(
         ROOT_DIR, writer.find_book(writer.load_books(ROOT_DIR), named["id"]),
         with_text=True)["chapters"][0])
+
+# Dragging changes membership and order together, including standalone drafts.
+drag_root = os.path.join(TMP, "drag-library")
+os.makedirs(drag_root)
+left = writer.create_book(drag_root, "Left")["id"]
+right = writer.create_book(drag_root, "Right")["id"]
+drag_ids = [writer.create(drag_root, "Draft %d" % i, "Body %d" % i)[0] for i in range(4)]
+for did in drag_ids[:3]:
+    writer.add_chapter(drag_root, left, did)
+
+ok, moved = writer.move_chapter(drag_root, drag_ids[2], left, drag_ids[0])
+chk("拖动：同书直接放到任意章节前", ok and writer.find_book(
+    writer.load_books(drag_root), left)["chapters"] == [drag_ids[2], drag_ids[0], drag_ids[1]])
+ok, moved = writer.move_chapter(drag_root, drag_ids[0], right)
+state = {b["id"]: b for b in moved["books"]}
+chk("拖动：跨书回执同时更新旧书与新书", ok and
+    [c["id"] for c in state[left]["chapters"]] == [drag_ids[2], drag_ids[1]] and
+    [c["id"] for c in state[right]["chapters"]] == [drag_ids[0]])
+ok, moved = writer.move_chapter(drag_root, drag_ids[3], right, drag_ids[0])
+chk("拖动：散稿直接插入书中指定位置", ok and writer.find_book(
+    writer.load_books(drag_root), right)["chapters"] == [drag_ids[3], drag_ids[0]])
+
+ledger_path = writer.books_path(drag_root)
+with open(ledger_path, "rb") as f:
+    untouched = f.read()
+for target, before, did in (("bk_000000000000", "", drag_ids[3]),
+                            (left, drag_ids[0], drag_ids[3]),
+                            ("", drag_ids[0], drag_ids[3]),
+                            (left, "", "write_000000000000")):
+    rejected, _ = writer.move_chapter(drag_root, did, target, before)
+    with open(ledger_path, "rb") as f:
+        chk("拖动：无效目标和失效位置不改变原归属", not rejected and f.read() == untouched)
+ok, moved = writer.move_chapter(drag_root, drag_ids[3], right, drag_ids[3])
+chk("拖动：拖到自身安全保持原状", ok and moved["moved"] is False)
+
+writer.move_chapter(drag_root, drag_ids[2])
+writer.move_chapter(drag_root, drag_ids[1], "", drag_ids[2])
+ok, moved = writer.move_chapter(drag_root, drag_ids[2], "", drag_ids[1])
+chk("拖动：回到未归册后可以上下排序", ok and moved["loose"] == [drag_ids[2], drag_ids[1]])
+writer.save(drag_root, drag_ids[1], "Updated body", rev=1)
+writer.rename_book(drag_root, left, "Renamed")
+reloaded = subprocess.check_output([sys.executable, "-c",
+    "import sys,json; sys.path.insert(0,sys.argv[1]); import writer; "
+    "print(json.dumps(writer.loose_draft_ids(sys.argv[2])))", ROOT, drag_root], text=True)
+chk("拖动：重新进程、编辑和旧接口改册后散稿顺序仍保存",
+    json.loads(reloaded) == [drag_ids[2], drag_ids[1]], reloaded)
+chk("拖动：归册和排序不碰稿子正文或版本",
+    writer.read(drag_root, drag_ids[3])["text"] == "Body 3" and
+    writer.read(drag_root, drag_ids[3])["rev"] == 1)
+
+parallel_ids = [writer.create(drag_root, "Parallel %d" % i, "Concurrent")[0]
+                for i in range(24)]
+with ThreadPoolExecutor(max_workers=8) as pool:
+    results = list(pool.map(lambda did: writer.move_chapter(drag_root, did, left), parallel_ids))
+chk("拖动：多个请求同时归册不丢失任何章节", all(ok for ok, _ in results) and
+    set(writer.find_book(writer.load_books(drag_root), left)["chapters"]) == set(parallel_ids))
+
+processes = []
+for batch in range(4):
+    code = ("import sys,json; sys.path.insert(0,sys.argv[1]); import writer; "
+            "[writer.move_chapter(sys.argv[2], did, sys.argv[3]) "
+            "for did in json.loads(sys.argv[4])]")
+    processes.append(subprocess.Popen([sys.executable, "-c", code, ROOT, drag_root,
+                                      right, json.dumps(parallel_ids[batch::4])]))
+codes = [proc.wait() for proc in processes]
+after = writer.load_books(drag_root)
+chk("拖动：多个后端进程同时跨书移动仍只归属一本书", codes == [0] * 4 and
+    writer.find_book(after, left)["chapters"] == [] and
+    set(writer.find_book(after, right)["chapters"]) == set(parallel_ids + [drag_ids[3], drag_ids[0]]))
 
 shutil.rmtree(TMP, ignore_errors=True)
 print()

@@ -69,7 +69,7 @@ run() {  # run <名字> <命令…>
 }
 
 # ── 静态：不需要浏览器，也不需要起服务 ──────────────────────────
-run "Python 语法" "$PY" -m compileall -q -x '(/\.venv/|/dist/|/cache/|/output/|/node_modules/|/安装包/)' .
+run "Python 语法" "$PY" -m compileall -q -x '(/\.venv/|/\.build-desktop[^/]*/|/target/|/dist/|/cache/|/output/|/node_modules/|/安装包/)' .
 run "内联 JS 语法" "$PY" tests/check_inline_js.py
 # 语法过得了不代表点得动：这一条查「调一个从没写出来的函数」，
 # 那类 bug 在界面上的表现就是「按下去没反应」，浏览器不打开永远看不出来。
@@ -976,6 +976,7 @@ run "清除本地数据（重建笔记索引留下的上一版 .prev 一起走 /
 # og:image 指到内网，等于替用户去敲内网的门）。网络那层用记账的假 urlopen 顶掉，
 # 于是「一次请求都没发出去」也断言得出来。全程临时沙盒，不联网。
 run "封面规则（首图挑选 / 内网拦截 / 落盘与补取）" "$PY" tests/check_covers.py
+run "封面代理缓存与安全" "$PY" tests/check_cover_proxy.py
 # 上一条管「这张封面该不该取、取回来怎么落盘」，落盘那一步只验了「字节对不对」。
 # 这一条单独验「两处同时写同一张封面时会不会互相踩」：`_write_json` 早就写明固定的
 # `xxx.tmp` 在多线程下有一个 os.replace 会扑空，可封面这档原来仍在用固定临时名、
