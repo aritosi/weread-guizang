@@ -40,6 +40,17 @@ MS_SCOPE = "Files.ReadWrite.AppFolder offline_access"
 
 UA = "guizang-sync/1.0"
 
+# OneDrive 大文件上传会话的分片大小。Graph 有一条硬规矩：每个分片（最后一片除外）
+# 必须正好是 320 KiB（327,680 字节）的整数倍 —— 官方文档原话是
+#   “Use a byte range size that is a multiple of 320 KiB (327,680 bytes).
+#    Failing to use a fragment size that is a multiple of 320 KiB can result in
+#    large file transfers failing after the last byte range is uploaded.”
+# 原先写 6 * 1024 * 1024（6,291,456），除 327,680 得 19.2 —— 除不尽，于是任何
+# 大于 4 MiB 的文件（带插图的整本书、EPUB）每一段都传完了，最后提交那一步才失败，
+# 用户看到「同步失败 1」，一本也没上去。20 × 320 KiB = 6,553,600（6.25 MiB），
+# 既除得尽，又落在官方建议的 5–10 MiB 之间。
+UPLOAD_CHUNK = 20 * 320 * 1024
+
 
 def _now():
     return int(time.time())
@@ -320,7 +331,7 @@ def _ms_put(c, path, blob):
 
 
 def _ms_put_large(c, path, blob):
-    """大文件走上传会话，分块传。600 万字节一块，稳。"""
+    """大文件走上传会话，分块传。分片大小见 `UPLOAD_CHUNK`。"""
     sess_url = "%s/me/drive/special/approot:/%s:/createUploadSession" % (
         GRAPH, urllib.parse.quote(path))
     body = json.dumps({"item": {"@microsoft.graph.conflictBehavior": "replace"}}).encode()
@@ -330,7 +341,7 @@ def _ms_put_large(c, path, blob):
         upload = _json_obj(r.read()).get("uploadUrl")
     if not upload:
         raise RuntimeError("OneDrive 没给上传地址")
-    chunk = 6 * 1024 * 1024
+    chunk = UPLOAD_CHUNK
     total = len(blob)
     pos = 0
     while pos < total:

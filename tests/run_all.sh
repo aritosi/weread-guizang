@@ -1047,6 +1047,17 @@ run "书架账丢更新（两个请求同时改，后写的不抹掉先写的）
 # /poll 两条 POST 没有任何兜底 —— 异常穿出 do_POST 就是连接被掐，界面「点了授权没反应」。
 # 收口是 sync._json_obj，四条读口逐个喂坏响应：不抛、坏响应不当成功、好响应一个字不改。
 run "云同步网络 JSON 形状（HTML / 数组 / 脏数字不甩连接，也不当成功）" "$PY" tests/check_sync_json.py
+# 上一条管的是「收回来的 JSON 什么形状」，这一条管「我们发出去的分片多大」。Graph 的
+# 上传会话有一条硬规矩：每个分片（末段除外）必须正好是 320 KiB（327,680 字节）的整数倍
+# （官方文档原话：Failing to use a fragment size that is a multiple of 320 KiB can result
+# in large file transfers failing after the last byte range is uploaded）。`_ms_put_large`
+# 原先写 `6 * 1024 * 1024`，除 327,680 得 19.2 —— 除不尽，于是任何大于 4 MiB 的整本书
+# （带插图 / EPUB）每一段都传完、最后提交那一步才失败，用户看到「失败 1」却一本没上去；
+# 小文件走简单上传那一档、不受这条规矩管，所以只在真有大书进云盘时才现形。收口是
+# sync.UPLOAD_CHUNK（20 × 320 KiB = 6.25 MiB，落在官方建议的 5–10 MiB）。这条门禁拿
+# 假的上传会话按那条规矩判分片：旧值当场 416（对照，不空转），新值逐段整数倍、首尾
+# 相接、拼回来逐字节相同；顺带守住 4 MiB 那条简单上传门槛没被顺手挪动。全离线。
+run "OneDrive 上传分片（320 KiB 整数倍 / 旧值确实 416 / 覆盖与门槛）" "$PY" tests/check_sync_upload_chunk.py
 # 图片下载这一条最容易出的不是「下不来」，是「下了一半还被当成下好了」：旧代码
 # `open(fp,"wb")` 先清空再写，中断留下的半截图只要过 1KB 就被跳过，重下按钮再点
 # 也不会碰它 —— 一张裂图钉死。现在落盘走「同目录 .part + os.replace」、跳过判断
