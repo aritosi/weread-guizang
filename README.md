@@ -134,11 +134,11 @@ bash desktop/build_macos.sh
 
 ## 使用边界
 
-- 微信读书导出需要有效账号及目标内容的阅读权限；部分书籍限制网页端阅读，正文抓取也可能不完整。
+- 微信读书导出需要自己的有效会员账号及目标内容的阅读权限；部分书籍限制网页端阅读，正文抓取也可能不完整。
 - 网页剪藏、第三方找书和视频下载依赖站点规则、账号权限与网络状态，平台变化可能导致失败。
 - RSS 当前手动刷新；视频转写质量由所选模型决定，AI 输出需自行核对。
 - WebDAV 与 Microsoft Graph 云同步尚未使用真实网盘账号完成端到端验收。
-- 1.2.3 桌面包面向 Apple Silicon；最低系统声明为 macOS 13.5，未在每个旧系统版本或其他 Mac 上逐一实测。Windows 成品尚未完成本轮真实设备验收。
+- 1.2.3 桌面包面向 Apple Silicon；最低系统要求为 macOS 13.5，未在每个旧系统版本或其他 Mac 上逐一实测。Windows 成品尚未完成本轮真实设备验收。
 
 ## 文档导航
 
@@ -154,10 +154,10 @@ bash desktop/build_macos.sh
 
 ## 来源、许可与致谢
 
-归藏在 [KEQingFeng/weread-guizang](https://github.com/KEQingFeng/weread-guizang) 基础上继续整理与改进。抓取引擎 `export_precise.py` 与图片下载能力源自 [lbq110/weread-exporter](https://github.com/lbq110/weread-exporter)。感谢上游作者，以及 Playwright、Tauri、PyInstaller、FFmpeg 等开源项目。
+抓取工具 `export_precise.py` 与图片下载能力源自 [lbq110/weread-exporter](https://github.com/lbq110/weread-exporter)。感谢上游作者，以及 Playwright、Tauri、PyInstaller、FFmpeg 等开源项目。
 
 **授权需按组成部分分别确认。** 抓取与图片下载上游未明确声明许可证，因此本仓库未放置覆盖全仓的根 `LICENSE`；原项目将后续新增的界面、官方接口集成、MCP 与 Skills 标注为按 MIT 使用。这不代表所有上游代码或整个安装包均可统一按 MIT 再分发。
 
 包内第三方组件遵循各自许可与来源清单。FFmpeg/FFprobe 的构建启用了 GPL，分发时需满足对应版本的源码及构建资料等义务，详见 [桌面发布边界](desktop/README.md#发布边界) 与包内 licenses/provenance 文件。
 
-请仅在自身内容权限与平台条款允许的范围内使用，尊重作者与出版方的权益。
+该项目仅仅为学习和交流而开发，请在下载后24h内进行删除，请仅在自身内容权限与平台条款允许的范围内使用，尊重作者与出版方的权益。
