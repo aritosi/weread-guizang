@@ -38,7 +38,7 @@ python3 desktop/migrate_source_data.py --source /path/to/weread-exporter
 ## 安装验收
 
 ```bash
-python3 desktop/test_installed.py dist/macos/归藏-1.2.2-arm64.dmg \
+python3 desktop/test_installed.py dist/macos/归藏-1.2.3-arm64.dmg \
   --output dist/macos/installed-test
 ```
 
@@ -53,3 +53,13 @@ python3 desktop/test_installed.py dist/macos/归藏-1.2.2-arm64.dmg \
 资源内保留第三方许可、版本和来源。所用 FFmpeg/FFprobe 启用了 GPL 及额外编解码器，公开再分发时需要为所分发的精确二进制提供相应完整源码及构建资料；`media/provenance.json` 保存版本、构建选项、来源和 SHA256。上游应用源码许可沿用原项目说明。
 
 微信、第三方网页、AI、云转写与同步依赖网络及用户配置。离线安装验收覆盖运行环境与本地功能；第三方账号的真实业务操作需使用用户账号另验。
+
+## 1.2.3 交互优化验收
+
+新版优化书架滚动、推荐/搜索封面和写作拖动。`test_ui_optimizations.py` 使用真实浏览器与鼠标事件、模拟微信数据和图床故障，验证 600 本书双向滚动、封面恢复及拖动持久化。可以通过 `--backend` 和 `--browser-path` 指向已安装 App 的后端与浏览器，复验包内代码；结果见 `TEST_RESULTS.md`。
+
+## GitHub 发布
+
+向仓库推送 `v<版本>` 标签，触发 `.github/workflows/release-macos.yml`。流程在 GitHub Apple Silicon runner 重建，完成源码门禁、DMG 复制安装、包内运行时与 UI 拖动验收后发布 Release；失败时保留诊断，不发布成品。发行操作仅使用该任务临时的 `GITHUB_TOKEN`。
+
+Release 附 DMG、`SHA256SUMS.txt`、测试证据与第三方许可清单。CI 重建的哈希可能与 `TEST_RESULTS.md` 中本地产物不同，下载校验以对应 Release 附件为准。构建脚本与版本标签一同保留。

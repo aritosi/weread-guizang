@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="430" viewBox="0 0 1280 430" role="img" aria-labelledby="title desc">
+  <title id="title">归藏 · 让阅读归于一处，让想法生长成文</title>
+  <desc id="desc">温暖纸张背景与蓝色书页插画，归藏本地阅读与写作工具首页横幅。</desc>
+  <defs>
+    <linearGradient id="paper" x2="1" y2="1"><stop stop-color="#FAF8F2"/><stop offset="1" stop-color="#F0EEE5"/></linearGradient>
+    <linearGradient id="blue" x2="1" y2="1"><stop stop-color="#426B9B"/><stop offset="1" stop-color="#21436F"/></linearGradient>
+    <pattern id="grid" width="28" height="28" patternUnits="userSpaceOnUse"><path d="M28 0H0V28" fill="none" stroke="#295387" stroke-opacity=".045"/></pattern>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="170%"><feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#243D60" flood-opacity=".12"/></filter>
+  </defs>
+  <rect width="1280" height="430" rx="20" fill="url(#paper)"/>
+  <rect width="1280" height="430" rx="20" fill="url(#grid)"/>
+  <path d="M0 408H1280" stroke="#C9D1DB"/>
+  <g fill="#294E7C" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">
+    <rect x="66" y="62" width="38" height="4" rx="2" fill="#B7925F"/>
+    <text x="118" y="70" font-size="14" letter-spacing="3">READ · COLLECT · CREATE</text>
+    <text x="62" y="181" font-size="88" font-weight="650" letter-spacing="12">归藏</text>
+    <text x="68" y="238" font-size="27" font-weight="500" letter-spacing="1">让阅读归于一处，让想法生长成文。</text>
+    <text x="69" y="288" font-size="17" fill="#6A7683">一本书的旅程，不止于读完。</text>
+    <rect x="68" y="331" width="111" height="32" rx="16" fill="#E5EBF1"/>
+    <text x="90" y="352" font-size="13">本地阅读</text>
+    <rect x="191" y="331" width="111" height="32" rx="16" fill="#E5EBF1"/>
+    <text x="213" y="352" font-size="13">知识整理</text>
+    <rect x="314" y="331" width="111" height="32" rx="16" fill="#E5EBF1"/>
+    <text x="336" y="352" font-size="13">自由写作</text>
+  </g>
+  <g transform="translate(803 64)">
+    <circle cx="170" cy="148" r="151" fill="#DDE5ED" fill-opacity=".65"/>
+    <circle cx="170" cy="148" r="169" fill="none" stroke="#91A5BD" stroke-opacity=".35" stroke-dasharray="3 10"/>
+    <g transform="rotate(-9 160 150)" filter="url(#shadow)">
+      <rect x="30" y="37" width="227" height="276" rx="10" fill="url(#blue)"/>
+      <path d="M48 37V313" stroke="#8EA7C6" stroke-opacity=".6"/>
+      <path d="M75 85H208M75 99H182" stroke="#C5D2E0" stroke-width="2" opacity=".6"/>
+      <path d="M89 155C113 147 138 147 160 159C181 147 207 147 230 155V239C205 231 182 231 160 242C138 231 113 231 89 239Z" fill="#F8F5EB"/>
+      <path d="M160 159V242M102 175C120 171 134 173 148 179M102 190C120 186 134 188 148 194M102 205C120 201 134 203 148 209M173 179C188 173 205 171 217 175M173 194C188 188 205 186 217 190M173 209C188 203 205 201 217 205" fill="none" stroke="#8EA2BB" stroke-width="2"/>
+      <path d="M199 37V91L214 81L229 91V37" fill="#BF9B68"/>
+    </g>
+    <g transform="rotate(7 275 226)" filter="url(#shadow)">
+      <rect x="211" y="180" width="147" height="109" rx="9" fill="#FFFDFA" stroke="#CCD5DF"/>
+      <rect x="230" y="201" width="31" height="5" rx="2" fill="#B9925D"/>
+      <path d="M231 225H332M231 238H319M231 251H299" stroke="#A5B5C7" stroke-width="3" stroke-linecap="round"/>
+    </g>
+    <circle cx="28" cy="223" r="7" fill="#B9925D"/>
+    <path d="M317 44V64M307 54H327" stroke="#829AB6" stroke-width="2" stroke-linecap="round"/>
+  </g>
+</svg>
