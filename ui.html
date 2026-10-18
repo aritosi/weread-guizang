@@ -11511,6 +11511,35 @@ function uiTagBook(id, pane) {
   });
 }
 
+/** 批量贴标签：逐条发，如实数「成了几篇」并把第一句失败原因带回来。
+
+    `post` 是裸 `fetch`（不是 `gzApi`），后端没在跑 / 连接被甩这些时候它当场 reject，
+    所以这里自己兜住：一次失败不带走后面那些，也不把整批说成成了 —— 回执那句由
+    `tagBatchReply` 按真实篇数给，见下面那段。 */
+async function tagBatchRun(ids, tag) {
+  let ok = 0, why = '';
+  for (const id of ids) {
+    let r = null;
+    try { r = await post('book.tag', {book: id, add: [tag]}); }
+    catch (e) { r = null; }
+    if (r && r.ok) ok++;
+    else if (!why) why = (r && r.msg) || '本机服务没答上来';
+  }
+  return {total: ids.length, ok, why};
+}
+
+/** 批量贴标签的回执：N 篇里真成了几篇。
+
+    单独抽一个纯函数，是给「回执与它宣布的那件事同帧落地」这条口径留个能离线验的
+    形状（`tests/check_batch_tag.py` 把它抽到 node 里跑，与 `check_ai_sum_style`
+    抽 `rdPickCfg` 是同一手）。落盘成没成由后端那句回，这里只负责把数字如实说出来：
+    「我的书架」是混合源、后端换班、某一次失败 —— 任何一篇没贴上，都不能报全成。 */
+function tagBatchReply(total, ok, why, tag) {
+  if (ok >= total) return '已给 ' + total + ' 篇贴上「' + tag + '」';
+  if (!ok) return '一篇都没贴上：' + (why || '本机服务没答上来');
+  return '只贴上 ' + ok + '/' + total + ' 篇，剩下的没贴上：' + (why || '本机服务没答上来');
+}
+
 /** 批量贴一张：筛出这一批，一次都贴上。摘某张走「管理标签」。 */
 function uiBatchTag(mod) {
   const ids = shelfFiltered(mod).map(b => b.id);
@@ -11527,8 +11556,8 @@ function uiBatchTag(mod) {
         const t = sBody.value.trim().slice(0, 20);
         if (!t) { whisper('标签需要一个名字'); return; }
         closeSheet();
-        for (const id of ids) await post('book.tag', {book: id, add: [t]}).catch(() => {});
-        await afterLib(mod, '已给 ' + ids.length + ' 篇贴上「' + t + '」');
+        const res = await tagBatchRun(ids, t);
+        await afterLib(mod, tagBatchReply(res.total, res.ok, res.why, t));
       }},
       {label: '算了'},
     ],
