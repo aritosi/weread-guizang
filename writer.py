@@ -23,7 +23,6 @@
     捞的用户私货，落到进展栏就等于落进仓库。
 """
 
-import hashlib
 from contextlib import contextmanager
 from functools import wraps
 import json
@@ -1327,8 +1326,3 @@ def diff_blocks(old, new):
                        "at": start[i1], "end": start[i2],
                        "old": "".join(a[i1:i2]), "new": "".join(b[j1:j2])})
     return blocks
-
-
-def fingerprint(text):
-    """正文指纹，给「内容没变就别拍快照」那一类判断用。"""
-    return hashlib.sha1((text or "").encode("utf-8")).hexdigest()[:12]

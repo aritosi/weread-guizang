@@ -171,17 +171,6 @@ def books_dir(repo):
     return os.path.join(data_dir(repo), "output")
 
 
-def default_books_place():
-    """首次安装时给你的书库位置：用户文档目录下的「归藏」。
-
-    Windows 与 macOS 都在「文档」里；其余平台退回用户主目录，别乱猜。
-    """
-    home = os.path.expanduser("~")
-    if IS_WIN or IS_MAC:
-        return os.path.join(home, "Documents", APP_TITLE)
-    return os.path.join(home, APP_TITLE)
-
-
 def output_dir():
     """引擎（export_precise.py）该把书往哪写。
 
