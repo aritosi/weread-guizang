@@ -1388,12 +1388,36 @@ def _mindmap_top_branches(mindmap):
     return len([c for c in root["children"] if c in nodes])
 
 
+def _nested_children(nodes):
+    """这些节点里，`children` 存的是对象（嵌套树）还是 id 字符串（扁平表）。
+
+    两种写法模型都会回，而它们要走两个不同的摊平口：扁平表由 `_normalize_nodes`
+    原样收下（`children` 本来就是 id，不再改名），嵌套树得让 `_flatten_tree`
+    逐个接上 id。判据必须看**孩子本身的形状**，不能只看「这个节点有没有 children」——
+    提示词里那份输出示例（`MINDMAP_USER`）正是 `nodes:[root]` + 嵌套对象孩子，
+    只看「有没有 children」会把它误判成扁平表：每个孩子被 `str()` 成一段字典文本、
+    谁也匹配不上节点 id，于是一整张合格的三分支导图被判成「一级分支不够」丢掉、
+    退成摘要兜底那张（见 tests/check_video_mindmap_nested.py）。
+    """
+    for n in nodes:
+        if not isinstance(n, dict):
+            continue
+        for c in _children_list(n):
+            if isinstance(c, dict):
+                return True
+    return False
+
+
 def _normalize_mindmap(payload, title, summary):
     """LLM 的树 → 我们认的 {version,title,root,nodes[]}；节点收成扁平表（children 存 id）。"""
     payload = payload if isinstance(payload, dict) else {}
     raw_nodes = payload.get("nodes")
-    if isinstance(raw_nodes, list) and any(isinstance(n, dict) and n.get("children")
-                                           for n in raw_nodes):
+    # 扁平表三个条件缺一不可：是列表、有节点带 children、且孩子存的是 id 字符串。
+    # 任一条不成立都按嵌套树交给 `_flatten_tree` —— 提示词示例就是第三种形状。
+    flat = (isinstance(raw_nodes, list)
+            and any(isinstance(n, dict) and n.get("children") for n in raw_nodes)
+            and not _nested_children(raw_nodes))
+    if flat:
         nodes = _normalize_nodes(raw_nodes)          # 已经是扁平 + children id 的写法
     else:
         nodes = _flatten_tree(raw_nodes or payload.get("root"), title)
