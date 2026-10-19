@@ -1,6 +1,14 @@
 # 更新记录
 
-本页记录面向使用者的主要变化。当前桌面成品为 [1.2.3 · macOS Apple Silicon](https://github.com/aritosi/weread-guizang/releases/tag/v1.2.3)，安装与数据说明见 [README](README.md)。
+本页记录面向使用者的主要变化。当前桌面成品为 [1.2.4 · macOS Apple Silicon](https://github.com/aritosi/weread-guizang/releases/tag/v1.2.4)，安装与数据说明见 [README](README.md)。
+
+## 1.2.4 · 2026-10-19
+
+- 整合 #219–#246 共 28 个 PR，覆盖书架字数缓存、平铺书分类与删除、写作围栏与原子导出、云同步、订阅识别、阅读计划、导图与笔记、首启媒体工具及账本并发更新。
+- 审查时补齐旧章节更新与等数量换章的缓存失效、封面缓存并发清理、PNG `.part` 文件格式和带数字内容的显式协议判断。
+- 更新旧测试夹具与异步等待，直接验证卡片真实可见性与合法动作遭遇落盘异常时的响应、日志及恢复。
+- 修复冻结后端 Python.framework 缺少资源签名的问题：在 Tauri 封装前修复整个 framework 并执行严格原生审计，增加隔离重现与修复回归。
+- 沿用 Application Support 数据目录与无需预装开发环境的独立安装方式。
 
 ## 1.2.3 · 2026-10-18
 

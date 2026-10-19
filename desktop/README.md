@@ -38,7 +38,7 @@ python3 desktop/migrate_source_data.py --source /path/to/weread-exporter
 ## 安装验收
 
 ```bash
-python3 desktop/test_installed.py dist/macos/归藏-1.2.3-arm64.dmg \
+python3 desktop/test_installed.py dist/macos/归藏-1.2.4-arm64.dmg \
   --output dist/macos/installed-test
 ```
 
