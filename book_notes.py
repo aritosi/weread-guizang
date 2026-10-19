@@ -170,6 +170,20 @@ def save_notes(book_dir, doc):
     return True
 
 
+def _tag_key(v):
+    """一条划线 / 一个条目的标签 key 收口：只认「字符串且在已知那几支笔里」，别的当没选。
+
+    为什么不能直接 `v in TAG_BY_KEY`：那是 dict 的成员测试，要求键可哈希，而
+    notes.json 是用户手改得动、云同步也会整份回写的档 —— `"tag": []`（或 `{}`）
+    一次就抛 `TypeError: unhashable type: 'list'`。这一句在 `load_notes` 里跑在
+    文件读盘那段 try 的**外面**（形状收口本来就是那之后的事），于是异常一路穿到
+    `/api/mynotes`，用户看到的是「这本书的笔记一屏打不开」。同一处别的字段
+    （`kind` / `ch` / `color` / `created_at` / 顶层 note、tpl）早各有收口，只有
+    tag 漏了这一档。认不出的标签一律回空串：界面上是「没贴标签」，不是编一支。
+    """
+    return v if isinstance(v, str) and v in TAG_BY_KEY else ""
+
+
 def _mark_row(m, t, mint_id):
     """一条划线的字段形状 —— 读盘（load_notes）与存盘（_normalize）共用的一把尺子。
 
@@ -178,7 +192,7 @@ def _mark_row(m, t, mint_id):
     「刚划的」。`mint_id` 只在存盘那一侧为真；读盘时缺 id 的条目在门口就被筛掉了。
     """
     text = _clip(m.get("text"), 4000)
-    tag = m.get("tag") if m.get("tag") in TAG_BY_KEY else ""
+    tag = _tag_key(m.get("tag"))
     if m.get("tag_name"):                       # 允许前端只给中文名
         tt = TAG_BY_NAME.get(str(m["tag_name"])[:8])
         tag = tt["key"] if tt else tag
@@ -212,7 +226,7 @@ def _entry_row(e, t, mint_id):
         "title": _clip(e.get("title"), 200),
         "body": _clip(e.get("body"), MAX_ENTRY_BODY),
         "ch": _clip(e.get("ch"), 60),
-        "tag": e.get("tag") if e.get("tag") in TAG_BY_KEY else "",
+        "tag": _tag_key(e.get("tag")),
         "refs": refs,
         "tpl": _clip(e.get("tpl"), 60),
         "created_at": _stamp(e.get("created_at"), t),
