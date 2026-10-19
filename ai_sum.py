@@ -252,14 +252,22 @@ def _json_object(raw):
 
 
 def _clean_node(raw, depth):
-    """一个节点 → {"label","kids"}；坏数据丢其子树而不是丢整张图。"""
+    """一个节点 → {"label","kids"}；坏数据丢其子树而不是丢整张图。
+
+    `depth` 是 0 起的层号（根节点是第 0 层），而 `MAX_DEPTH` 是「最多留几层」——
+    与 mindmap.py 那把尺子同一个意思（那里 `MAX_DEPTH = 8`，注释写明「留 depth
+    0..7」）。所以到第 `MAX_DEPTH - 1` 层就只留这个节点本身、不再往下挂孩子：
+    原先写的是 `depth >= MAX_DEPTH`，根节点算第 0 层，等于**多留一层**（MAX_DEPTH=4
+    时画出 5 层），与上面 MAP_SYS 对模型说的「整棵树最深 MAX_DEPTH 层」不是同一个
+    数。MAX_DEPTH=1 时根节点即唯一一层，这个判据同样成立。
+    """
     if not isinstance(raw, dict):
         return None
     label = re.sub(r"\s+", " ", str(raw.get("label") or raw.get("text") or "")).strip()
     if not label:
         return None
     node = {"label": label[:MAP_LEAF * 2], "kids": []}
-    if depth >= MAX_DEPTH:
+    if depth >= MAX_DEPTH - 1:
         return node
     kids = raw.get("kids")
     if not isinstance(kids, list):
