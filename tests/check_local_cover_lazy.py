@@ -71,6 +71,12 @@ def _lit_before(body, mark, call):
     return i >= 0 and j >= 0 and j > i
 
 
+def _lit_after_last(body, mark, call):
+    """同 `_lit_before`，但认最后一次 `call` —— 翻架那一段也会点亮当前页。"""
+    i, j = body.find(mark), body.rfind(call)
+    return i >= 0 and j >= 0 and j > i
+
+
 # ── ① localCard 不再在游离节点上给封面赋 src ──────────────────────
 local = fn_body("localCard")
 chk("localCard：封面改走 extCoverImg（只暂存 data-cover，不在这儿赋 src）",
@@ -86,11 +92,11 @@ chk("localCard：到了再淡入（onload → .in）仍在",
 lgrid = fn_body("renderLocalGrid")
 cgrid = fn_body("renderClipShelf")
 chk("renderLocalGrid：网格挂进文档之后立刻 paintCovers(grid)（首屏不能等第一次滚动）",
-    _lit_before(lgrid, "wrap.replaceChildren(grid)", "paintCovers(grid)"), lgrid[-400:])
+    _lit_after_last(lgrid, "stage.replaceChildren(view, nav)", "paintCovers(pageGrids[localPage])"), lgrid[-400:])
 chk("renderClipShelf：同一处同样补一次 paintCovers(grid)",
     _lit_before(cgrid, "wrap.replaceChildren(grid)", "paintCovers(grid)"), cgrid[-400:])
 chk("renderLocalGrid / renderClipShelf 都在卡片造完之后才点亮（不是造之前）",
-    lgrid.find("localCard(") < lgrid.find("paintCovers(grid)")
+    lgrid.find("localCard(") < lgrid.find("paintCovers(pageGrids[localPage])")
     and cgrid.find("localCard(") < cgrid.find("paintCovers(grid)"), "点亮排在了建卡前面")
 
 # ── ③ 前提：调 paintCovers 时这一格已经显出来 ─────────────────────
