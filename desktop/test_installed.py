@@ -120,6 +120,25 @@ def main():
         assert runtime_report["checks"]["browser_headed"]["detail"]["executable"].startswith(prefix)
         report["checks"]["obsolete_venv_media_cache_ignored"] = True
         report["checks"]["frozen_runtime"] = runtime_report["checks"]
+        notes_fixture = '''import json,tempfile
+from pathlib import Path
+import book_notes
+with tempfile.TemporaryDirectory() as folder:
+    raw = {"marks": [{"id":"m1","text":"kept","tag":[]},
+                     {"id":"m2","text":"valid","tag":"point"}],
+           "entries": [{"id":"e1","title":"kept","body":"body","tag":{}}]}
+    (Path(folder)/book_notes.NOTES_FILE).write_text(json.dumps(raw), encoding="utf-8")
+    doc = book_notes.load_notes(folder)
+    assert len(doc["marks"]) == 2 and len(doc["entries"]) == 1
+    assert doc["marks"][0]["tag"] == "" and doc["marks"][1]["tag"] == "point"
+    assert doc["entries"][0]["tag"] == ""
+    print(json.dumps({"ok":True,"module":book_notes.__file__,"marks":2,"entries":1}))
+'''
+        notes = subprocess.run([str(backend), "-c", notes_fixture], env=env, cwd="/",
+                               capture_output=True, text=True, check=True, timeout=60)
+        notes_report = json.loads(notes.stdout)
+        assert notes_report["ok"] and notes_report["module"].startswith(prefix)
+        report["checks"]["installed_notes_dirty_tags"] = notes_report
         recorder = '''import json,subprocess,tempfile
 from pathlib import Path
 from playwright.sync_api import sync_playwright
