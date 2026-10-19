@@ -511,11 +511,36 @@ class _ToMarkdown(html.parser.HTMLParser):
         self.out.append(data if self.pre else re.sub(r"\s+", " ", data))
 
     def text(self):
-        s = "".join(self.out)
-        s = re.sub(r"[ \t]+\n", "\n", s)
-        s = re.sub(r"[ \t]{2,}", " ", s)
-        s = re.sub(r"\n{3,}", "\n\n", s)
-        return s.strip()
+        """收干净：行尾空格、正文里多出来的连续空格、连续空行。
+
+        围栏代码块里的内容**一行都不归一**：`<pre>` 的缩进就是代码本身（Python 四格、
+        YAML 两格、缩进式树形输出），把 `[ \\t]{2,}` 铺到整篇上等于把每一级缩进都压成
+        一个空格 —— 导进来的技术书、剪藏的技术文章里，代码从落盘那一刻起就是错的，
+        而且不报任何错。这与 `handle_data` 对 `self.pre` 的承诺是同一件事：`<pre>` 的
+        字节原样留着，收尾时不能自己再卖掉。
+
+        「哪几行在围栏里」走全仓唯一那把尺子 `md_fence`（`_ToMarkdown` 给 `<pre>` 铺的
+        正是它认的 ``` 围栏），别在这里另写一套状态机 —— 抄两份就会在这些边角上走散。
+        """
+        lines = "".join(self.out).split("\n")
+        mask = md_fence.fence_mask(lines)
+        kept = []
+        for line, in_code in zip(lines, mask):
+            if not in_code:
+                line = re.sub(r"[ \t]+$", "", line)
+                line = re.sub(r"[ \t]{2,}", " ", line)
+            kept.append(line)
+        # 连续空行只在正文里收（最多留一行）；代码块里的空行是内容，照原样留着。
+        out, blanks = [], 0
+        for line, in_code in zip(kept, mask):
+            if not in_code and not line:
+                blanks += 1
+                if blanks >= 2:
+                    continue
+            else:
+                blanks = 0
+            out.append(line)
+        return "\n".join(out).strip()
 
 
 def _md_from_xhtml(txt):
