@@ -1016,6 +1016,14 @@ run "书本地笔记存盘（坏档读得开 / 坏时间戳不丢整份 / 坏形
 # 条目、不补 id、认不出的时间戳回 0（不拿「现在」编）。另钉顶层 `1e400` 不许变成
 # JSON 里的 `Infinity`（那会让界面 JSON.parse 整份失败）。纯函数 + 临时目录，全离线。
 run "笔记读盘脏字段（混排时间戳 / 数组 ch / 越界数字不带走导出与导图）" "$PY" tests/check_notes_dirty_read.py
+# 上面那条把字段级收口钉成一把尺子，`tag` 却是它漏掉的一档：`m.get("tag") in TAG_BY_KEY`
+# 是 **dict** 的成员测试，要求键可哈希 —— notes.json 手改得动、云同步也会整份回写，
+# `"tag": []` 一次就抛 `TypeError: unhashable type: 'list'`，而这一句跑在 load_notes
+# 文件读盘那段 try 的**外面**，异常直接穿到 `/api/mynotes`：用户看到「这本书的笔记一屏
+# 打不开」。现在 `_tag_key` 只认字符串且在已知那几支笔里，认不出的回空串。这一条钉住
+# 「脏 tag 读得开 / 条目不丢 / 认得出的照认 / 下游四条不抛」+「tag_name 中文名回退不动」
+# +「好值一个字不改」。纯函数 + 临时目录，全离线，归 --fast。
+run "笔记 tag 脏形状（数组 / 对象 tag 不把整份笔记读不出来）" "$PY" tests/check_notes_tag_dirty.py
 # 上面两条管的都是「盘上那份 JSON 的字段形状」。这一条管**写盘那一步的坏字符**：
 # 前半条划线的正文里带一个落单的代理码点（界面把 emoji 拦腰截断就会剩它），
 # `json.dump(..., ensure_ascii=False)` 把它交给 utf-8 编码器时当场 UnicodeEncodeError，
