@@ -6076,7 +6076,12 @@ function heatGridHtml(kind) {
   const pad = (first.getDay() + 6) % 7;      // 星期一当作第一行
   let html = '';
   cells.forEach((c, i) => {
-    html += `<i class="heatcell${c[2] ? ' lv' + c[2] : ''}" data-d="${c[0]}" data-s="${c[1]}"`
+    // 后端给的是 0..3 四档（activity.levels 三个边界、level_of 回 0..3），界面这套
+    // 色阶却是「没有记录 + lv1..lv4」五格：有记录的那天要整体抬一档，否则最低那一档
+    // （秒数 > 0 但不到峰值 1/4）会和「根本没有记录」糊成同一个灰，最深那一档 lv4
+    // 永远涂不到 —— 图例里那五格就白写了。0 秒仍然只留底色。
+    const lv = c[1] > 0 ? Math.min(4, c[2] + 1) : 0;
+    html += `<i class="heatcell${lv ? ' lv' + lv : ''}" data-d="${c[0]}" data-s="${c[1]}"`
       + (i === 0 && pad ? ` style="grid-row-start:${pad + 1}"` : '') + '></i>';
   });
   // 月份标只放在「这个月 1 号落在哪一列」上 —— 按列平均分配会越标越偏，
