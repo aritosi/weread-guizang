@@ -42,6 +42,12 @@ fi
 test -x dist/desktop/backend/guizang-backend
 test -x dist/desktop/media/ffmpeg
 test -x dist/desktop/media/ffprobe
+# PyInstaller can collect a Python.framework whose executable carries a bare
+# Mach-O signature. Re-sign the containing framework to seal its Resources before
+# Tauri copies it; changing Python versions alone does not repair that layout.
+.build-desktop-venv/bin/python desktop/audit_native.py dist/desktop/backend \
+  --repair-signatures --strict-signatures \
+  --output "$ROOT/dist/desktop/backend-native-audit.json"
 /usr/bin/python3 - <<'PY'
 import json, pathlib, re
 root = pathlib.Path.cwd()

@@ -64,6 +64,13 @@ jobs:
           set -euo pipefail
           export GUIZANG_BUILD_PYTHON="$(uv python find --managed-python 3.12.15)"
           bash desktop/build_macos.sh 2>&1 | tee "$RUNNER_TEMP/guizang-build.log"
+      - name: Native framework signing regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist/macos/test-results
+          .build-desktop-venv/bin/python desktop/test_native_signing.py \
+            | tee dist/macos/test-results/native-signing-fixture.json
       - name: Source regression gates
         shell: bash
         run: |
@@ -104,7 +111,8 @@ jobs:
           cp dist/desktop/media/*LICENSE.txt dist/desktop/media/COPYING.GPLv3 dist/macos/third-party-notices/
           (cd dist/macos && zip -qr test-results.zip test-results && zip -qr third-party-notices.zip third-party-notices)
           (cd dist/macos && shasum -a 256 "归藏-${RELEASE_TAG#v}-arm64.dmg" \
-            test-results.zip third-party-notices.zip > SHA256SUMS.txt)
+            test-results.zip third-party-notices.zip 安装说明.txt \
+            LOCAL_TEST_RESULTS.md > SHA256SUMS.txt)
       - name: Publish tested installer
         env:
           GH_TOKEN: ${{ github.token }}

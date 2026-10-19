@@ -60,6 +60,6 @@ python3 desktop/test_installed.py dist/macos/归藏-1.2.3-arm64.dmg \
 
 ## GitHub 发布
 
-向仓库推送 `v<版本>` 标签，触发 `.github/workflows/release-macos.yml`。流程在 GitHub Apple Silicon runner 重建，完成源码门禁、DMG 复制安装、包内运行时与 UI 拖动验收后发布 Release；失败时保留诊断，不发布成品。发行操作仅使用该任务临时的 `GITHUB_TOKEN`。云端固定使用 uv 提供的 Python 3.12.15 独立发行版，与本机通过验收的构建方式一致，避免混入系统 Python.framework 的资源签名布局。
+向仓库推送 `v<版本>` 标签，触发 `.github/workflows/release-macos.yml`。流程在 GitHub Apple Silicon runner 重建，完成源码门禁、DMG 复制安装、包内运行时与 UI 拖动验收后发布 Release；失败时保留诊断，不发布成品。发行操作仅使用该任务临时的 `GITHUB_TOKEN`。云端通过 uv 选择构建 Python；冻结后端无论采用独立动态库还是 Python.framework，都单独执行原生签名修复与严格审计，随后再交给 Tauri 封装。`test_native_signing.py` 使用隔离 framework 复现缺资源签名并验证修复。
 
 Release 附 DMG、`SHA256SUMS.txt`、测试证据与第三方许可清单。CI 重建的哈希可能与 `TEST_RESULTS.md` 中本地产物不同，下载校验以对应 Release 附件为准。构建脚本与版本标签一同保留。
