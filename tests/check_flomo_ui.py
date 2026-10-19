@@ -351,12 +351,17 @@ with sync_playwright() as pw:
     with page.expect_file_chooser() as fc:
         page.click("#fmImport")
     fc.value.set_files(ZIP_PATH)
+    # 成功回执先于异步重铺出现，且只显示 2.4 秒；先核对回执，再等卡片，
+    # 避免重铺慢时拿已经隐藏的 toast.innerText 当成「从未报数」。
+    receipt_ok = settle(page, """() => {
+      const e = document.querySelector('.whisper.up');
+      return e && e.textContent.includes('导入 9 条') && e.textContent.includes('2 张图');
+    }""", ms=25000)
+    receipt_text = whisper(page)
+    chk("导入的回执说清了几条、几张图", receipt_ok, receipt_text)
     ok = settle(page, "() => document.querySelectorAll('#fmScr .fmcard').length === %d" % N_MEMOS,
                 ms=25000)
     chk("点「导入 flomo 导出包」选那个 zip → 时间线铺出 %d 张卡" % N_MEMOS, ok, cards(page))
-    chk("导入的回执说清了几条、几张图",
-        ("导入 9 条" in whisper(page) or "9 条" in whisper(page)) and "2 张图" in whisper(page),
-        whisper(page))
     flush(page)
 
     chk("一天一根分隔线（4 天 4 根）", page.locator("#fmScr .fmday").count() == 4,
