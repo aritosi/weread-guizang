@@ -27,6 +27,7 @@ jobs:
     env:
       RELEASE_REF: ${{ inputs.tag || github.ref_name }}
       CARGO_BUILD_JOBS: '2'
+      TZ: Asia/Shanghai
     steps:
       - uses: actions/checkout@v4
         with:
@@ -58,6 +59,22 @@ jobs:
           test "$(uname -m)" = arm64
           rustup toolchain install stable --profile minimal
           rustup default stable
+      - name: Prepare verified Python environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv venv --clear --python 3.12.15 --seed .build-desktop-venv
+          .build-desktop-venv/bin/python -m pip install -r desktop/requirements-build.txt
+          .build-desktop-venv/bin/python -c 'import sys; print(sys.executable, sys.version); assert sys.version_info[:3] == (3, 12, 15)'
+          test ! -e .venv
+          ln -s .build-desktop-venv .venv
+      - name: Source regression gates
+        timeout-minutes: 10
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist/macos/test-results
+          bash tests/run_all.sh --fast 2>&1 | tee dist/macos/test-results/source-regression.log
       - name: Build self-contained DMG
         shell: bash
         run: |
@@ -68,16 +85,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p dist/macos/test-results
           .build-desktop-venv/bin/python desktop/test_native_signing.py \
             | tee dist/macos/test-results/native-signing-fixture.json
-      - name: Source regression gates
-        shell: bash
-        run: |
-          set -euo pipefail
-          ln -s .build-desktop-venv .venv
-          mkdir -p dist/macos/test-results
-          bash tests/run_all.sh --fast 2>&1 | tee dist/macos/test-results/source-regression.log
       - name: Install DMG and test bundled runtime
         shell: bash
         run: |
