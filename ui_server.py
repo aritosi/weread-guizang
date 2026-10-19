@@ -6326,8 +6326,10 @@ class Handler(BaseHTTPRequestHandler):
                     if not d:
                         continue
                     title = meta_title(b)
-                    mod = book_layout.MODULE_OF.get(
-                        os.path.basename(os.path.dirname(d)), "weread")
+                    # 与 book.move / book.delete 同一把尺子（book_module 先看目录、
+                    # 再按 meta / 前缀认）。拿「父目录叫什么」猜，平铺书一律猜成
+                    # weread，销名销在别人那一格，书真正住的那格里留幽灵 assign / tags。
+                    mod = book_module(b)
                     drop_stray_md(b, title)      # 先清合并稿（还要靠这本书认自己住哪格）
                     shutil.rmtree(d)
                     lib_forget(lib, b, mod)
@@ -7088,8 +7090,12 @@ class Handler(BaseHTTPRequestHandler):
             lib = load_lib()
             # 归到哪一格由这本书自己住哪儿决定，不信前端传过来的模块名：
             # 前端的模块标签可能是上一次刷新时留下的，跨模块归错夹子看不出来。
-            s = lib_scope(lib, book_layout.MODULE_OF.get(
-                os.path.basename(os.path.dirname(d)), "weread"))
+            # 认格走 book_module()（与 book.tag / book.order / /api/book_state 同一把尺子）：
+            # 它先看目录，目录不在模块文件夹里时按 meta / 前缀认 —— 命令行
+            # `export_precise.py <id>` 直接写出来的就是平铺书（见《部署说明》§六）。
+            # 原先这里只看「父目录叫什么」，平铺书的父目录是书库根，一律落回 weread，
+            # 于是在剪藏那一屏给它归入剪藏的夹子会回「这个模块里没有这个文件夹」。
+            s = lib_scope(lib, book_module(bid))
             if folder and not any(f["id"] == folder for f in s["folders"]):
                 return self._json({"ok": False, "msg": "这个模块里没有这个文件夹"})
             if folder:
@@ -7186,7 +7192,10 @@ class Handler(BaseHTTPRequestHandler):
             if not d:
                 return self._json({"ok": False, "msg": "找不到这本书"})
             title = meta_title(bid)
-            mod = book_layout.MODULE_OF.get(os.path.basename(os.path.dirname(d)), "weread")
+            # 认格与 book.move / book.tag / book.order 同一把尺子（book_module 先看目录、
+            # 再按 meta / 前缀认）。拿「父目录叫什么」猜，平铺书一律猜成 weread ——
+            # 销名销在别人那一格，书真正住的那一格（如剪藏）里 assign / tags 会留幽灵。
+            mod = book_module(bid)
             # 上游在写书的目录旁还会留一份合并稿，一并清掉（限定在书库内）
             drop_stray_md(bid, title)
             shutil.rmtree(d)
