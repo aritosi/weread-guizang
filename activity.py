@@ -176,14 +176,16 @@ def calendar(d, kind, weeks=YEAR_WEEKS, today=None):
 
 def peak(d, kind, today=None):
     """近一年最忙的那天有多少秒 —— 色阶得按每个人自己的量级来，
-    不然一个每天只写二十分钟的人，整张图永远是最低一档。"""
-    today = _to_date(today or time.strftime("%Y-%m-%d"))
-    days = d.get(kind, blank())["days"]
-    hi = 0
-    for key, sec in days.items():
-        if _to_date(key) >= today - ONE_DAY * (YEAR_WEEKS * 7):
-            hi = max(hi, int(sec))
-    return hi
+    不然一个每天只写二十分钟的人，整张图永远是最低一档。
+
+    窗口必须与界面上真正铺出来的那张图**同一格**（`calendar`，371 格），所以这里
+    直接从它的格子里取最大值。旧写法按 `YEAR_WEEKS * 7` 天往前数，比 calendar 多含
+    一天（第 372 天，today-371），而那一天在图上是没有格子的：不巧峰值正好落在那一格
+    时，色阶会照一个用户看不见的读数去分档 —— `summary` 里 `max`（可见格子的最大值）
+    与 `levels` 对不上，整张看得见的图全挤在最低档。顺带把「比今天还晚」的脏日期也
+    挡在外面（旧写法只卡下界），那是系统时钟被改过或账本被手改才有的形状。
+    """
+    return max([v for _k, v in calendar(d, kind, YEAR_WEEKS, today=today)] or [0])
 
 
 def levels(d, kind, today=None):
@@ -205,7 +207,7 @@ def levels(d, kind, today=None):
 
 
 def level_of(sec, cuts):
-    """这一格涂第几档（0..4）。"""
+    """这一格涂第几档（三个边界 → 0..3 四档）。"""
     n = 0
     for c in cuts:
         if sec > c:
