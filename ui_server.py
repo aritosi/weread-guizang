@@ -2357,6 +2357,23 @@ def cover_url_path(url):
 
 _COVER_MIME = {"image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"}
 
+def _cover_cached(url):
+    """本地已经缓存好这张图就回 (路径, MIME)，没有回 None。
+
+    与落盘那一段（`_write_bytes(p, raw)` + `<p>.type`）成对：`fetch_cover_url` 判
+    「要不要去下」两次都读这一处 —— 顶上读一次，抢到 owner 之后再读一次（见那里的
+    注释，抢 owner 的窗口里别人可能刚把图落盘）。
+    """
+    p = cover_url_path(url)
+    if not (os.path.isfile(p) and os.path.getsize(p) > 800):
+        return None
+    try:
+        with open(p + ".type", encoding="utf-8") as f:
+            mime = f.read().strip() or "image/jpeg"
+    except OSError:
+        mime = "image/jpeg"
+    return p, (mime if mime in _COVER_MIME else "image/jpeg")
+
 def _cover_image_mime(raw):
     if raw.startswith(b"\xff\xd8\xff"):
         return "image/jpeg"
@@ -2395,13 +2412,9 @@ def fetch_cover_url(url):
         return None
     p = cover_url_path(url)
     meta = p + ".type"
-    if os.path.isfile(p) and os.path.getsize(p) > 800:
-        try:
-            with open(meta, encoding="utf-8") as f:
-                mime = f.read().strip() or "image/jpeg"
-        except OSError:
-            mime = "image/jpeg"
-        return p, (mime if mime in _COVER_MIME else "image/jpeg")
+    hit = _cover_cached(url)
+    if hit:
+        return hit
     with _cover_fetch_lock:
         if _cover_failed.get(url, 0) > time.monotonic():
             return None
@@ -2416,6 +2429,17 @@ def fetch_cover_url(url):
         waiter.wait(16)
         # The owner publishes its result before waking other requests.
         return getattr(waiter, "cover_result", None)
+    # 顶上那次判缓存与这里抢到 owner 之间有一个窗口：别人可能已经下完落盘、并把自己的
+    # `_cover_fetching` 摘掉了 —— 不在这儿再判一次，同一张封面就要下两次（图床会当成
+    # 爬虫；门禁那条 8 路并发的用例量到的正是这个）。抢到的这把 owner 锁仍要还回去，
+    # 等在门口的那几个才醒得过来。
+    hit = _cover_cached(url)
+    if hit:
+        with _cover_fetch_lock:
+            waiter.cover_result = hit
+            _cover_fetching.pop(url, None)
+            waiter.set()
+        return hit
     result = None
     acquired = False
     try:

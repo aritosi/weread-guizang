@@ -116,30 +116,29 @@ def _idna_host(h):
         return ""
 
 
-def host_blocked(host):
-    """这个主机名是不是本机 / 内网地址（拒绝替用户去敲）。
+def _host_candidates(host):
+    """把主机名归一成「要拿去判的那几个写法」；空 / 解不出回空元组。
 
-    先按字面认 IPv4 / IPv6（含各种非常规写法与 IPv4 映射的 IPv6），认不出来再退回
-    那把按名字写的正则（localhost 这类）。域名带结尾的点（`localhost.`）也按同一个
-    名字判，别让一个点把门绕开。
+    这把归一只有这一处，`host_blocked`（本机也拒）与 `_loopback_host`（只认回环）
+    两把尺子共用 —— 原先两处逐句各抄一份，改一边忘了另一边就是「同一个名字、两种
+    答案」，而它们判的都是「这一趟要不要替用户发出去」。
 
-    百分号编码先解一次：这把尺子量的是**真正会连过去**的那个主机名，而不是
+    百分号编码先解一次：要量的是**真正会连过去**的那个主机名，而不是
     `urlparse().hostname` 递过来的原样字符串 —— 后者不做解码（`http://%31%32%37.0.0.1/`
     原样留着 `%31%32%37.0.0.1`），而 `urllib.request.Request._parse` 会
     `unquote(self.host)`，socket 连的是 `127.0.0.1`。只认字面量就成了「看的是一串、
     连的是另一串」：`%31%32%37.0.0.1`、`%6c%6f%63%61%6c%68%6f%73%74`、
-    `192.168.%31.1`、`169.254.169.%32%35%34` 这些解码后全是本机 / 内网 / 元数据地址，
-    从这个口整批漏过去（剪藏取页、内置浏览器、平台解析、首图与封面兜底全走这里）。
-    与 urllib 一样只解一次：`%2531…` 解出来仍是 `%31…`，DNS 认不出，不构成通路。
+    `192.168.%31.1`、`169.254.169.%32%35%34` 全从这个口漏过去。与 urllib 一样只解
+    一次：`%2531…` 解出来仍是 `%31…`，DNS 认不出，不构成通路。
 
-    IDNA 归一（`_idna_host`）是同一个「看的是一串、连的是另一串」的第二档，而且这
-    一档真的够得着：相容字符折出来的主机名是**latin-1 能编码**的，`urllib` 那道
-    Host 头的编码不会拦它（`¹²⁷` 那种 latin-1 编不出的才会被拦下来），于是
-    `http://1²7.0.0.1:8770/api/state` 从这个口进来、socket 连的确是 127.0.0.1 ——
-    实测本机假服务真被敲到、回包还被当成正文收下。按字面判与按 getaddrinfo 判必须
-    是同一把尺子，所以这里把原样与本名都过一遍。
+    原样与本名（IDNA 归一）都算一个候选：映射后的那一份是 socket 真正会连的名字，
+    原样那份保证既有名字判据（`127.` / `localhost` 前缀）一条都不放宽。IDNA 这一档
+    真的够得着：相容字符折出来的主机名是 latin-1 能编码的，`urllib` 那道 Host 头的
+    编码不会拦它，于是 `http://1²7.0.0.1:8770/api/state` 从这里进来、socket 连的
+    的确是 127.0.0.1。
 
     解编码放在方括号剥离之前：`%5B::1%5D` 先变成 `[::1]`，后面那一步才认得出。
+    结尾的点在这里一并去掉（`localhost.` 与 `localhost` 同一个名字）。
     """
     h = urllib.parse.unquote(str(host or ""))
     h = h.strip().lower()
@@ -147,32 +146,75 @@ def host_blocked(host):
         h = h[1:-1]
     h = h.rstrip(".")
     if not h:
-        return True
-    # 原样与本名都判：映射后的那一份是 socket 真正会连的名字，原样那份保证既有
-    # 名字判据（`127.` / `localhost` 前缀）一条都不放宽。
+        return ()
     mapped = _idna_host(h)
-    for cand in ((h, mapped) if mapped and mapped != h else (h,)):
-        if BLOCKED_HOSTS.match(cand):
+    return (h, mapped) if mapped and mapped != h else (h,)
+
+
+def _host_ip(cand):
+    """一个候选写法对应的 IP 对象；不是 IP（是个域名 / localhost 这类）回 None。
+
+    字面 IPv4 / IPv6（含 IPv6 的 zone id、IPv4 映射的 IPv6）由 `ipaddress` 认；
+    认不出的再过一遍 `_legacy_ipv4`（`2130706433` / `0x7f000001` / `0177.0.0.1` /
+    `127.1` 这些老式写法，`ipaddress` 不认、浏览器却照发）。调用方拿到的 IP 一律
+    再经 `_ip_blocked` 或 `.is_loopback` 收口，不在这里下结论。
+    """
+    name = cand.split("%", 1)[0]        # IPv6 的 zone id（fe80::1%eth0）不算地址本体
+    try:
+        ip = ipaddress.ip_address(name)
+    except ValueError:
+        ip = None
+    if ip is not None:
+        return ip
+    legacy = _legacy_ipv4(name)
+    if legacy is None:
+        return None
+    try:
+        ip = ipaddress.ip_address(legacy)
+    except ValueError:
+        # 理论上到不了（_legacy_ipv4 只回 0 .. 2**32-1 的整数）。认不出的一律当
+        # 「不是 IP」，由调用方退回名字判据，绝不让护栏自己把异常冒出去。
+        return None
+    return ip
+
+
+def _localhost_name(cand):
+    """这一份写法是不是 RFC 6761 的 localhost 名字：`localhost` 本身，或 `.localhost` 底下的任何名字。
+
+    为什么单独一条：`evil.localhost` 与 `localhost.localdomain` 一样「不是 IP 字面量、
+    连的却是回环」—— 浏览器与 `getaddrinfo` 对 `*.localhost` 一律回环（RFC 6761 §6.3
+    要求名字解析把 `.localhost` 底下的名字当特殊名字，总是回环地址），而
+    `BLOCKED_HOSTS` 那条正则按 `^localhost` 加锚，只认 `localhost` / `localhost.xxx`，
+    `evil.localhost` 从它眼皮底下过去。`_loopback_host` 早就认这一档
+    （`.endswith(".localhost")`）—— 两把尺子对同一个名字给出两种答案，就是「多放一个
+    本机自己进去」。这一条收到共用助手，两处一起用。
+    """
+    return cand == "localhost" or cand.endswith(".localhost")
+
+
+def host_blocked(host):
+    """这个主机名是不是本机 / 内网地址（拒绝替用户去敲）。
+
+    先按字面认 IPv4 / IPv6（含各种非常规写法与 IPv4 映射的 IPv6），认不出来再退回
+    那把按名字写的正则（localhost 这类）。域名带结尾的点（`localhost.`）也按同一个
+    名字判，别让一个点把门绕开。
+
+    归一成哪几个写法（百分号解码、去尾点、IDNA 本名）统一在 `_host_candidates`，
+    与 `_loopback_host` 吃同一份；localhost 名字的统一在 `_localhost_name`；这里只留
+    「什么算拒绝」这一条判据。
+    """
+    cands = _host_candidates(host)
+    if not cands:
+        return True
+    for cand in cands:
+        if _localhost_name(cand) or BLOCKED_HOSTS.match(cand):
             return True
-        name = cand.split("%", 1)[0]    # IPv6 的 zone id（fe80::1%eth0）不算地址本体
-        try:
-            ip = ipaddress.ip_address(name)
-        except ValueError:
-            ip = None
-        if ip is not None:
-            mapped4 = ip.ipv4_mapped if ip.version == 6 else None
-            if _ip_blocked(mapped4 if mapped4 is not None else ip):
-                return True
+        ip = _host_ip(cand)
+        if ip is None:
             continue
-        legacy = _legacy_ipv4(name)
-        if legacy is not None:
-            try:
-                if _ip_blocked(ipaddress.ip_address(legacy)):
-                    return True
-            except ValueError:
-                # 理论上到不了（_legacy_ipv4 只回 0 .. 2**32-1 的整数）。留着是给这条路
-                # 钉个契约：认不出的东西一律当拒，绝不让 host_blocked 自己把异常冒给调用方。
-                return True
+        mapped4 = ip.ipv4_mapped if ip.version == 6 else None
+        if _ip_blocked(mapped4 if mapped4 is not None else ip):
+            return True
     return False
 
 
@@ -226,35 +268,15 @@ def _loopback_host(host):
     百分号编码、方括号包着的 IPv6、结尾的点、老式 IPv4（`2130706433` / `127.1`）与
     IPv4 映射的 IPv6（`::ffff:127.0.0.1`）都认 —— 少认一个，离线夹具就会在
     `host_lan_blocked` 那一步被当成内网地址挡掉；多认一个，等于给内网开一个口子。
-    所以这里不另立规矩：解析这一段逐句与 `host_blocked` 对齐，只把答案收窄到回环。
+    所以这里不另立规矩：归一逐句走 `_host_candidates`，IP 解析走 `_host_ip`，
+    localhost 名字走 `_localhost_name`，与 `host_blocked` 同一份，只把答案收窄到回环。
     """
-    h = urllib.parse.unquote(str(host or "")).strip().lower()
-    if h.startswith("[") and h.endswith("]"):
-        h = h[1:-1]
-    h = h.rstrip(".")
-    if not h:
-        return False
-    # IDNA 归一这一档与 `host_blocked` 是同一把尺子（第十八轮起那边认它）：`1²7.0.0.1`
-    # 真正连的是 127.0.0.1，这里若只按字面判，它会被当成「本机以外的内网」而拒掉 ——
-    # 对插图 / 订阅那条路是「多拒」、不算漏洞，但两把尺子对同一个名字给出两种答案，
-    # 下一轮改哪一边都会踩到另一边的门禁。原样与本名都判。
-    mapped_name = _idna_host(h)
-    for cand in ((h, mapped_name) if mapped_name and mapped_name != h else (h,)):
-        if cand == "localhost" or cand.endswith(".localhost"):
+    for cand in _host_candidates(host):
+        if _localhost_name(cand):
             return True
-        name = cand.split("%", 1)[0]    # IPv6 的 zone id（fe80::1%eth0）不算地址本体
-        try:
-            ip = ipaddress.ip_address(name)
-        except ValueError:
-            ip = None
+        ip = _host_ip(cand)
         if ip is None:
-            legacy = _legacy_ipv4(name)
-            if legacy is None:
-                continue
-            try:
-                ip = ipaddress.ip_address(legacy)
-            except ValueError:
-                continue
+            continue
         mapped = ip.ipv4_mapped if ip.version == 6 else None
         if (mapped if mapped is not None else ip).is_loopback:
             return True
