@@ -3328,6 +3328,45 @@ def ai_mindmap(book_id, chapter=""):
                   "nodes": res.get("nodes", 0), "msg": msg}
 
 
+# raw/*.json 是一章一份账（`export_precise` 写 `raw/0001.json`），`list_books` 要把各章的
+# `text_len` 加起来当这本书的字数。麻烦在于 `/api/state` 是界面每 2.6 秒一次的轮询，每轮
+# 都把这批账逐份 `json.load` 一遍 —— 实测 30 本 × 300 章（9000 份）光这一句就要 80ms，
+# 而整趟 `list_books` 才 86ms：它才是这条链上最贵的一步（书架越厚越明显）。
+#
+# 缓存签名只取「这份目录里 JSON 的份数 + 各自 mtime」：补一章会改份数、重取某一章会改
+# 那一份的 mtime、删一章也会改份数，三种变化都认得出；签名没变就把上次的和直接复用，
+# 一份文件都不开。签名那一步走 `os.scandir` 顺手把 stat 一起取回（比「先 listdir 再逐份
+# open」便宜一个量级），所以它不构成新的瓶颈。
+_RAW_CHARS_CACHE = {}
+_RAW_CHARS_LOCK = threading.Lock()
+_RAW_CHARS_CACHE_MAX = 4096
+
+
+def _raw_chars_key(raw_dir):
+    """raw/*.json 的「这份目录变没变」签名，外加这一趟的文件名清单：`(sig, names)`。
+
+    `sig` 是 `(份数, 最新 mtime_ns)`；目录不在 / 空目录 / 扫到一半 stat 失败
+    （文件刚好被删、权限变了）都回 `None` —— 调用方这一趟照旧逐份读，只是结果不进
+    缓存：半份签名缓存下来会把一份不完整的和钉死。
+    """
+    names, mtimes, complete = [], [], True
+    try:
+        with os.scandir(raw_dir) as it:
+            for e in it:
+                if not e.name.endswith(".json"):
+                    continue
+                names.append(e.name)
+                try:
+                    mtimes.append(e.stat().st_mtime_ns)
+                except OSError:
+                    complete = False
+    except OSError:
+        return None, []
+    if not names or not complete:
+        return None, names
+    return (len(names), max(mtimes)), names
+
+
 def list_books(module=None):
     """书库清单。给 `module` 就只列那一个模块（界面上每个模块各问各的，
     剪藏的文章不会再混进微信读书那一堆）。"""
@@ -3345,18 +3384,35 @@ def list_books(module=None):
             if os.path.isdir(ch_dir) else []
         images = [f for f in os.listdir(img_dir) if not f.startswith(".")] \
             if os.path.isdir(img_dir) else []
+        # 取书这几本账（_catalog / _progress / raw）与引擎同一把尺子：用户会拿记事本
+        # 直接改，另存成带 BOM 的 UTF-8 时裸 utf-8 读当场失败、被收成「没有目录 /
+        # 没有进度 / 零字」，进度条与「取回多少」跟着一起错。字数这一路还扛着
+        # 「界面每 2.6 秒轮询一次」，所以按 `_raw_chars_key` 的签名缓存：没变就直接
+        # 复用上次的和，一份 raw 账都不开（见上面那段注释）。
         chars = 0
         if os.path.isdir(raw_dir):
-            # 取书这几本账（_catalog / _progress / raw）与引擎同一把尺子：用户会拿
-            # 记事本直接改，另存成带 BOM 的 UTF-8 时裸 utf-8 读当场失败、被收成
-            # 「没有目录 / 没有进度 / 零字」，进度条与「取回多少」跟着一起错。
-            for rf in sorted(os.listdir(raw_dir)):
-                if rf.endswith(".json"):
+            sig, raw_names = _raw_chars_key(raw_dir)
+            hit = None
+            if sig is not None:
+                with _RAW_CHARS_LOCK:
+                    hit = _RAW_CHARS_CACHE.get(raw_dir)
+                if hit is not None and hit[0] != sig:
+                    hit = None                     # 这本书动过了，旧和作废
+            if hit is not None:
+                chars = hit[1]
+            else:
+                for rf in raw_names:
                     try:
                         chars += int(json.load(open(os.path.join(raw_dir, rf),
                                                     encoding="utf-8-sig")).get("text_len") or 0)
                     except Exception:
                         pass
+                if sig is not None:
+                    with _RAW_CHARS_LOCK:
+                        if len(_RAW_CHARS_CACHE) >= _RAW_CHARS_CACHE_MAX:
+                            # 删过的书不留在表里：够大就整把丢掉重建，下次各书各算一遍。
+                            _RAW_CHARS_CACHE.clear()
+                        _RAW_CHARS_CACHE[raw_dir] = (sig, chars)
         # 读得开不等于是个对象：meta.json 被手改成 `[]` / `"书名"` 也照样是合法 JSON，
         # 而下面每一处都是 meta.get(...)，一处 AttributeError 就让整份书架清单抛出去
         # （书架是「一本书脏、全部书看不见」）。收口统一在 _meta_dict 一处。
