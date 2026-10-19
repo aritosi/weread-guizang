@@ -17,8 +17,15 @@ import json
 import math
 import os
 import re
+import threading
 import time
 import uuid
+from contextlib import contextmanager
+
+try:
+    import fcntl
+except ImportError:                                 # Windows 没有 fcntl：只靠进程内那把锁
+    fcntl = None
 
 try:
     import platform_compat as pc
@@ -252,8 +259,8 @@ def _atomic_write(path, payload):
     """原子落盘，并把摘过坏字符的那份回给调用方（界面回话要用它，不能各说各的）。
 
     临时件一次一个名字、写失败先收干净再抛：理由在函数上面那段注释里。
-    这只解决「账本被写坏」，不解决「读—改—写互相覆盖」——两个写手先后落盘时后一个
-    仍可能基于旧读数，所以计数仍以最后一次为准。
+    这一层只解决「账本被写坏」，不解决「读—改—写互相覆盖」——那一半由 `_state_guard`
+    在调用侧把整段串起来（见 `write_state` / `counted` / `_pending`）。
     """
     payload = _drop_surrogates(payload)
     d = os.path.dirname(path)
@@ -275,17 +282,77 @@ def _atomic_write(path, payload):
     return payload
 
 
+# 账本的「读—改—写」那把跨进程锁。
+#
+# 为什么原子落盘还不够：这条路上有两个进程 —— 后端请求线程（`/api/anna` 的
+# search / domain / 清账，见 ui_server.py）与窗口子进程（`anna_browser.py` 接住下载、
+# 收尾报数）。两边都是「读整份 → 改一笔 → 写整份」，`_atomic_write` 只保证**单次落盘**
+# 不写出半截、不互相搬走临时件，管不住这两次落盘之间的窗口：两边读到同一份旧账、
+# 各改一笔、各顶回去，后写的把先写的**整份抹掉**。症状都是可见的数字对不上：
+#   · 窗口刚落一份下载（`caught +1`）同时界面点了搜索（写 `keyword`），后写的那次
+#     基于旧读数，`caught` 退回上一轮 —— 界面上「已接住 N 份」自己往回跳；
+#   · 「补收」与窗口的 `drain` 同时入库两本，`seen` / `books` 以最后一次为准，
+#     先入库的那本从「最近入库」里消失，同一份摘要还可能被再收一次。
+#
+# 所以把整段「读—改—写」串起来：`threading.RLock` 管同一个进程里的请求线程
+# （ThreadingHTTPServer 的常态），`fcntl.flock` 管另一个进程（窗口那一趟）。
+# 锁档案是账本旁边的 `<账本>.lock`，与 `writer._books_locked` 同一形状。
+# Windows 没有 fcntl（同 `writer`），只靠进程内那把锁 —— 那平台上窗口那一趟是
+# 独立进程，够不着这一档，但至少同进程的并发请求不再丢更新。
+_STATE_LOCK = threading.RLock()
+
+
+@contextmanager
+def _state_guard(data_dir):
+    """罩住一次「读账本 → 改 → 写回」。拿不到锁档案也不拦路（线程锁仍在）。"""
+    path = state_path(data_dir)
+    d = os.path.dirname(path)
+    if d:
+        try:
+            os.makedirs(d, exist_ok=True)
+        except OSError:
+            pass
+    with _STATE_LOCK:
+        handle = None
+        try:
+            handle = open(path + ".lock", "a+b")
+        except OSError:
+            handle = None
+        try:
+            if handle is not None and fcntl is not None:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            yield
+        finally:
+            if handle is not None:
+                try:
+                    if fcntl is not None:
+                        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+                except OSError:
+                    pass
+                handle.close()
+
+
 def write_state(data_dir, patch):
     """改账本唯一入口：读旧、并进补丁、再原子落盘，回洗完之后的那份。
 
     窗口进程和后端请求线程都会写这一份，所以只能「先读后写 + 原子替换」；
     直接覆盖会把对方刚写进去的入库记录抹掉。
+
+    `patch` 是 dict 就逐键并进去；是 callable 就让它在锁里拿到当前账本、回新的那份 ——
+    「先读旧数、算个新数」的调用侧（`counted` / `_pending` / `ingest`）必须走 callable，
+    否则那口气算完到落盘之间别人写的更新仍会在这一句 `update` 里被盖掉。
+    整段「读—改—写」都在 `_state_guard` 里，见那把锁的说明。
     """
-    st = read_state(data_dir)
-    if isinstance(patch, dict):
-        st.update(patch)
-    st["updated_at"] = int(time.time())
-    return _atomic_write(state_path(data_dir), st)
+    with _state_guard(data_dir):
+        st = read_state(data_dir)
+        if callable(patch):
+            st = patch(st)
+        elif isinstance(patch, dict):
+            st.update(patch)
+        if st is None:
+            return None
+        st["updated_at"] = int(time.time())
+        return _atomic_write(state_path(data_dir), st)
 
 
 # ── 口令条（界面 → 窗口）────────────────────────────────────────────
@@ -589,8 +656,7 @@ def ingest(shelf_root, cover_dir, filepath, title="", author="", data_dir=""):
         return {"ok": False, "msg": note, "name": name, "pending": True}
 
     md5 = digest(blob)
-    st = read_state(data_dir) if data_dir else _blank()
-    first, st = mark_seen(st, md5)
+    first, _st = mark_seen(read_state(data_dir) if data_dir else _blank(), md5)
     if not first:
         return {"ok": True, "msg": "这一本之前已经收过了，没有重复入库",
                 "name": name, "dup": True}
@@ -612,38 +678,63 @@ def ingest(shelf_root, cover_dir, filepath, title="", author="", data_dir=""):
     row = {"name": name, "title": info.get("title") or "", "author": info.get("author") or "",
            "book": info.get("id") or "", "bytes": size, "chapters": info.get("chapters") or 0,
            "at": int(time.time())}
-    st = push_book(st, row)
-    st["imported"] = _as_int(st.get("imported")) + 1
-    st["note"] = "已收进本地书架：《%s》" % (row["title"] or name)
     if data_dir:
-        write_state(data_dir, {k: st[k] for k in
-                               ("seen", "books", "imported", "pending", "note")})
+        def record(st):
+            # 入库这一步可能跑了好几秒，账本在被读出来之后可能已经被别人改过
+            # （窗口的 drain 与后端「补收」是两条并行的路）。所以 `seen` / `books` /
+            # `imported` 的改动在锁里重新算，而不是拿上面那份旧读数去 `update` ——
+            # 那样会把这段时间里别人写进去的入库记录整条盖掉。
+            first_again, st = mark_seen(st, md5)
+            if not first_again:
+                return st
+            st = push_book(st, row)
+            st["imported"] = _as_int(st.get("imported")) + 1
+            st["note"] = "已收进本地书架：《%s》" % (row["title"] or name)
+            return st
+
+        write_state(data_dir, record)
     return {"ok": True, "msg": "已收进本地书架：《%s》（%d 章）"
                                % (row["title"] or name, row["chapters"]),
             "name": name, "book": info, "fmt": fmt}
 
 
 def _pending(data_dir, name, reason, size):
-    """记一笔「这份没进书架」以及为什么。界面要把原因显示出来，不能只说没成功。"""
+    """记一笔「这份没进书架」以及为什么。界面要把原因显示出来，不能只说没成功。
+
+    「读旧 skipped → 加一 → 写回」整段走 `write_state` 的锁：窗口的 `drain` 与
+    「补收」两条路都可能同时没进书架，分开读写的写法会让后一笔把前一笔的条数与
+    `pending` 一起抹掉（界面上少一条「为什么没进来」）。
+    """
     if not data_dir:
         return
-    st = read_state(data_dir)
     row = {"name": name, "reason": _note(reason), "bytes": _as_int(size),
            "at": int(time.time())}
-    st = push_pending(st, row)
-    st["skipped"] = _as_int(st.get("skipped")) + 1
-    st["note"] = "有一本没进书架：%s" % _note(reason)
-    write_state(data_dir, {"pending": st["pending"], "skipped": st["skipped"],
-                           "note": st["note"]})
+
+    def apply(st):
+        st = push_pending(st, row)
+        st["skipped"] = _as_int(st.get("skipped")) + 1
+        st["note"] = "有一本没进书架：%s" % _note(reason)
+        return st
+
+    write_state(data_dir, apply)
 
 
 def counted(data_dir, patch):
-    """带计数的改账本（接住几个 / 最近一句话）。窗口那条路只用这一个口写状态。"""
-    st = read_state(data_dir)
+    """带计数的改账本（接住几个 / 最近一句话）。窗口那条路只用这一个口写状态。
+
+    增量必须在锁里加到**当前**读数上：`counted` 走到这里时账本可能已经被另一个
+    写手（后端请求线程 / 另一份下载）改过，先读出来算好再并进去就会丢掉那一次增量。
+    """
     if not isinstance(patch, dict):
+        return read_state(data_dir)
+
+    def apply(st):
+        body = dict(patch)
+        delta = body.pop("caught_delta", None)
+        if delta is not None:
+            st["caught"] = _as_int(st.get("caught")) + _as_int(delta)
+        st.update(body)
         return st
-    if "caught_delta" in patch:
-        st["caught"] = _as_int(st.get("caught")) + _as_int(patch.pop("caught_delta"))
-    st.update(patch)
-    return write_state(data_dir, st)
+
+    return write_state(data_dir, apply)
 
