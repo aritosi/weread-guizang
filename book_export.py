@@ -418,11 +418,21 @@ def read_chapters(book_dir):
 
 
 def _first_heading(body, fallback):
+    """这一章的标题，回**纯文本**。
+
+    body 是 `md_to_html` 的产物，里面的实体已经转义过一遍（`Tom & Jerry` 在 h1 里
+    是 `<h1>Tom &amp; Jerry</h1>`）；nav 与每一节的 `<title>` 落笔时还会再 `_esc()`
+    一次。这里不把实体还原，就会写成 `&amp;amp;` —— 阅读器的目录与章节标题栏里显示
+    的是字面量 `&amp;`，和正文那个正确的 `<h1>` 对不上。
+
+    先剥标签再解实体：`# **粗** 标题` 这类行内标记在 h1 里是一串子标签，剥掉之后的
+    才是要还原的文本。
+    """
     m = re.search(r"<h1>(.*?)</h1>", body)
     if m:
         t = re.sub(r"<[^>]+>", "", m.group(1)).strip()
         if t:
-            return t
+            return html.unescape(t)
     return fallback
 
 
