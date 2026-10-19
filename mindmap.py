@@ -691,6 +691,13 @@ def _place_tree(boxes, ctx):
     byid, kids, roots = ctx["byid"], ctx["kids"], ctx["roots"]
     cols = []
 
+    def shift(bid, delta):
+        """把这一支（含自己）整体下移 delta：框与框之间的相对位置一个像素都不动。"""
+        b = byid[bid]
+        b["y"] += delta
+        for kid in kids.get(bid) or []:
+            shift(kid, delta)
+
     def rec(bid, depth, y):
         b = byid[bid]
         while len(cols) <= depth:
@@ -705,7 +712,17 @@ def _place_tree(boxes, ctx):
             cur = rec(kid, depth + 1, cur)
         first, last = byid[ck[0]], byid[ck[-1]]
         b["y"] = (_center(first)[1] + _center(last)[1]) / 2.0 - b["h"] / 2.0
-        return cur
+        # 父框自己可能比这一摞孩子还高（典型形状：父节点文字长、只有一个短孩子），
+        # 居中之后它的顶边会跑到给这一支留的格子上面去，压住上一支的框（「节点文字
+        # 一多框就挤在一起」那一类）。整支一起往下挪，挪进自己的格子；孩子那一摞
+        # 本来就够高时 delta=0，坐标一个像素都不动（四种形态的差分断言靠这条）。
+        if b["y"] < y:
+            delta = y - b["y"]
+            shift(bid, delta)
+            cur += delta
+        # 返回值是「这一支占到哪里」：父框比孩子摞还高时以父框的底为准，
+        # 否则下一支会从父框身上长出来。
+        return max(cur, b["y"] + b["h"] + _V_GAP)
 
     y = 0.0
     for root in roots:
