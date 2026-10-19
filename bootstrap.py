@@ -102,6 +102,21 @@ def browser_ready():
     return False
 
 
+def media_ready(st):
+    """ffmpeg / ffprobe 两份都在了吗 —— 第 4 步「已有，跳过」的唯一判据。
+
+    只看 `found` 是不够的：那是**ffmpeg 在不在**，而 `ffmpeg_tool.ensure()` 要的是
+    两份 binary 都齐（`BINARIES = ("ffmpeg", "ffprobe")`，一并下一前一后）。上一趟
+    网络断在第二份时，盘上留下「ffmpeg 有了、ffprobe 没有」的半装状态；下一次启动
+    若只问 `found` 就会说「已有，跳过」，ffprobe 再也没人自动补 —— 而它正是量时长的
+    那一份：长视频切段后 `video_note._transcribe_cloud` 拿 `_audio_seconds(part)`
+    拼时间轴，量不出时长就每段都从 0 开始，转写稿里的时间戳叠在一起，界面上却不报错。
+    冻结版那条路（main 里 frozen 分支）一直问的就是两样，这里对齐同一把尺子。
+    """
+    st = st if isinstance(st, dict) else {}
+    return bool(st.get("found")) and bool(st.get("ffprobe"))
+
+
 def main():
     say("归藏 · 配置运行环境")
     say(f"项目目录：{HERE}")
@@ -116,7 +131,7 @@ def main():
             "import playwright, genanki, pypdf, feedparser, yt_dlp")
         import ffmpeg_tool
         media = ffmpeg_tool.status()
-        ready = dependencies and browser_ready() and media.get("found") and media.get("ffprobe")
+        ready = dependencies and browser_ready() and media_ready(media)
         say("内置运行环境已就绪。" if ready else "应用内置组件缺失，请重新安装完整的归藏应用。")
         return 0 if ready else 1
 
@@ -179,10 +194,15 @@ def main():
     else:
         try:
             import ffmpeg_tool
-            if ffmpeg_tool.status().get("found"):
+            st = ffmpeg_tool.status()
+            if media_ready(st):
                 say("      已有，跳过")
             else:
-                say("      正在下一份静态的（不装进系统，放在数据目录里）")
+                if st.get("found"):
+                    # ffmpeg 在、ffprobe 缺：上一趟断在第二份。ensure() 只补缺的那一样。
+                    say("      ffprobe 缺了一份（上次断在第二份），正在补上")
+                else:
+                    say("      正在下一份静态的（不装进系统，放在数据目录里）")
                 seen = {"s": None}
 
                 def ff_prog(stage, pct=None):
