@@ -1817,7 +1817,6 @@ def sync_device_poll():
 # 存成文件而不是塞 localStorage：图往往几 MB，localStorage 只有 5MB 且会被字符串化翻倍。
 # 平均色/亮度的判断放在前端做（canvas 采样），后端只管存与发，不引入图像库。
 
-WALL_MIMES = {"image/png", "image/jpeg", "image/webp", "image/gif"}
 WALL_MAX = 15 * 1024 * 1024
 
 
@@ -1876,7 +1875,6 @@ def clear_wallpaper():
 
 NOTES_IDX = os.path.join(CACHE_DIR, "notes_index.json")
 APKG_DIR = os.path.join(CACHE_DIR, "apkg")
-NOTES_LOCK = threading.Lock()
 NOTES_STATE = {"running": False, "done": 0, "total": 0, "built_at": 0, "count": 0}
 # 索引文件既会被全量重建线程整份覆盖，也会被「单本现拉」增量合并 —— 必须互斥，
 # 否则合并写进去的条目会被重建结束时的那次整写吃掉。

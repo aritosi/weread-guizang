@@ -29,7 +29,6 @@ import anna_state as anna
 
 PROFILE_DIR = os.path.join("cache", "anna_profile")
 PUMP_MS = 900            # 事件泵一轮等多久：太短白烧 CPU，太长下载落地了界面还不动
-CMD_POLL_S = 1.0         # 多久看一眼「该搜这个词」那块牌子
 HARD_LIVE_S = 4 * 3600   # 兜底：窗口开超过 4 小时一定收摊，别留僵尸进程占着任务槽
 
 _STOP = {"now": False}

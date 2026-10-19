@@ -134,10 +134,6 @@ class _MemoParser(HTMLParser):
         self.last_item = False     # 上一块是不是列表项（决定粘不粘空行）
 
     # -- 小工具 ------------------------------------------------------------
-    def _cls(self, attrs):
-        d = dict(attrs)
-        return str(d.get("class") or "")
-
     def _flush_para(self):
         """一段结束：把攒着的字并进去。
 

@@ -538,19 +538,6 @@ async def wait_settled(page, step=0.09, quiet=0.30, max_wait=2.6, blank_ok=1.1):
         await asyncio.sleep(step)
 
 
-async def wait_stable(page, prev_count, timeout=8):
-    """旧口径的「等两张一样的采样」。翻页主循环已经不用它了（见 wait_settled），
-    保留给还需要「先睡一会儿再确认」的场景。"""
-    last = -1
-    for _ in range(int(timeout / 0.5)):
-        c = await page.evaluate("() => window.__wr_count()")
-        if c == last:
-            return c
-        last = c
-        await asyncio.sleep(0.5)
-    return last
-
-
 _CHAPTER_FILE_RE = re.compile(r"([0-9]+)\.md\Z")
 
 
