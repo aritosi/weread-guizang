@@ -1,0 +1,34 @@
+name: Diagnose stalled macOS release
+on:
+  push:
+    branches: ['codex/diagnose-release-1.2.4']
+permissions:
+  contents: read
+  actions: write
+jobs:
+  logs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Stop stalled verification and collect logs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TARGET_RUN: '39216003034'
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api --method POST "repos/$GH_REPO/actions/runs/$TARGET_RUN/cancel"
+          for attempt in $(seq 1 40); do
+            status="$(gh api "repos/$GH_REPO/actions/runs/$TARGET_RUN" --jq .status)"
+            if [ "$status" = completed ]; then break; fi
+            sleep 3
+          done
+          gh run view "$TARGET_RUN" --log > previous-run.log
+          tail -100 previous-run.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stalled-release-logs
+          path: previous-run.log
+          retention-days: 7
