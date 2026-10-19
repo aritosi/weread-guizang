@@ -712,7 +712,6 @@ def build_mindmap_svg(tree, title=""):
     deepest = max(n["_d"] for n in nodes)
     width = col_x[deepest] + max(n["_w"] for n in nodes if n["_d"] == deepest) + _PAD_X * 2
     height = bottom - top + _TOP_PAD * 2 + (22 if title else 0)
-    ink0 = "#2f2a24"
 
     out = ['<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" '
            'viewBox="0 0 %d %d" font-family="PingFang SC, Hiragino Sans GB, '

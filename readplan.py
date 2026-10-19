@@ -240,10 +240,6 @@ def _clamp01(v):
 
 # ─────────────────────────── 日期小工具 ───────────────────────────
 
-def today_str(now=None):
-    return _day_from_epoch(now if now is not None else time.time())
-
-
 def _day_from_epoch(ts):
     try:
         return datetime.fromtimestamp(int(ts)).strftime("%Y-%m-%d")

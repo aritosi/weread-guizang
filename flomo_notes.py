@@ -1172,7 +1172,3 @@ def read_portrait(flomo_dir):
     except Exception:
         pass
     return write_portrait(flomo_dir)["portrait"]
-
-
-def portrait_markdown_path(flomo_dir):
-    return os.path.join(flomo_dir, PORTRAIT_DIR, PORTABLE_MD)

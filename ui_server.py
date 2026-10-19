@@ -46,7 +46,6 @@ import book_notes
 import cleanup
 import clip_article
 import feed as feed_mod
-import ffmpeg_tool
 import flomo_notes
 import login
 import mindmap
@@ -2014,14 +2013,6 @@ def build_notes_index():
         log(f"--- 笔记索引失败：{str(e)[:120]} ---")
     finally:
         NOTES_STATE["running"] = False
-
-
-def ensure_notes_index():
-    d = load_notes_index()
-    if d.get("built_at"):
-        return d
-    build_notes_index()
-    return load_notes_index()
 
 
 def book_id_pairs(any_id):
@@ -7224,7 +7215,7 @@ def main():
         if not ok:
             # 没接管成也别把服务弄死：照旧往后找一个空端口，功能还是全的，
             # 只是适配器/浏览器认的那个口还是旧进程 —— 这句要告诉用户。
-            print(f"  接管    : 先用别的端口顶着，旧的那个得手动退出才干净", flush=True)
+            print("  接管    : 先用别的端口顶着，旧的那个得手动退出才干净", flush=True)
     os.makedirs(DOWNLOAD_DIR, exist_ok=True)
     ensure_books_dir()
     # 先把这几行打出来：平台不对时，一眼就能看出用的是哪个解释器、浏览器装在哪

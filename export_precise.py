@@ -1346,7 +1346,6 @@ async def run_session(book_id, md_dir, raw_dir, start_idx, seen_imgs,
                                            encoding="utf-8-sig")).get("pages", 0))
         except Exception:
             page_base = 0
-    last_cat_title = load_last_catalog_title(catalog_path) if catalog_path else ""
     async with async_playwright() as p:
         ctx = await p.chromium.launch_persistent_context(
             USER_DATA_DIR, headless=HEADLESS, viewport={"width": 1200, "height": 900},
@@ -1411,7 +1410,6 @@ async def run_session(book_id, md_dir, raw_dir, start_idx, seen_imgs,
             await asyncio.sleep(0.8)
             await run_bounded(wait_position_settled(page), 25, "等阅读器恢复上次位置")
             await run_bounded(dump_catalog_titles(page, catalog_path), PREP_TIMEOUT, "读取目录")
-            last_cat_title = load_last_catalog_title(catalog_path)
             # 钩子在跳转前一刻清空：开头这一屏新画出来的文字就完整留在里面，
             # 抓取时一次翻页都不用按（one_turn 是「翻页→抓」，落地页永远抓不到）。
             await page.evaluate("() => window.__wr_reset()")
