@@ -122,6 +122,11 @@ for raw, scheme in (
     ("mailto:someone@example.com", "mailto"),
     ("ftp://example.com/x", "ftp"),
     ("file:///etc/hosts", "file"),
+    ("javascript:123", "javascript"),
+    ("data:123", "data"),
+    ("ftp:21", "ftp"),
+    ("file:123", "file"),
+    ("mailto:123", "mailto"),
 ):
     hit, got = blocked(raw)
     chk("非 http(s) 的 scheme 仍拒 %s" % raw,

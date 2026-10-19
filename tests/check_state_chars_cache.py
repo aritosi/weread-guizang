@@ -156,6 +156,25 @@ try:
 finally:
     ui_server.json = json
 
+# 旧章节仍早于最新章节：只取 max(mtime) 会把这次更新漏掉。
+mkbook("wr_older", {"0001.json": j(text_len=10), "0002.json": j(text_len=20)})
+older = os.path.join(raw_dir("wr_older"), "0001.json")
+newer = os.path.join(raw_dir("wr_older"), "0002.json")
+stamp = 1_700_000_000_000_000_000
+os.utime(older, ns=(stamp, stamp))
+os.utime(newer, ns=(stamp + 1000, stamp + 1000))
+chk("F 边界对照：缓存前两章相加为 30", chars_of("wr_older") == 30)
+with open(older, "w", encoding="utf-8") as f:
+    f.write(j(text_len=200))
+os.utime(older, ns=(stamp + 1, stamp + 1))
+chk("F 旧章节更新但最大 mtime 不变也重算", chars_of("wr_older") == 220)
+os.remove(older)
+replacement = os.path.join(raw_dir("wr_older"), "0009.json")
+with open(replacement, "w", encoding="utf-8") as f:
+    f.write(j(text_len=300))
+os.utime(replacement, ns=(stamp + 1, stamp + 1))
+chk("F 等数量、等大小、等时间的换章也重算", chars_of("wr_older") == 320)
+
 shutil.rmtree(ROOT, ignore_errors=True)
 print()
 print("书架字数缓存：通过 %d 项，失败 %d 项" % (PASSED, len(FAIL)))

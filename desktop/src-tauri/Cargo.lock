@@ -1174,7 +1174,7 @@ dependencies = [
 
 [[package]]
 name = "guizang-desktop"
-version = "1.2.3"
+version = "1.2.4"
 dependencies = [
  "libc",
  "serde",

@@ -498,11 +498,16 @@ with sync_playwright() as pw:
     chk("归组弹层给的是可点的组名按钮（不是让用户数行）", page.evaluate(
         "() => [...document.querySelectorAll('#sheetActs button')]"
         ".map(b => b.innerText.trim()).includes('夜里翻')"))
-    page.locator('#sheetActs button', has_text="夜里翻").first.click()
-    page.wait_for_function(
-        """() => [...document.querySelectorAll('#fSubs .feitem')].some(
-             e => e.innerText.includes('碎碎念') || e.innerText.includes('技术周刊'))""",
-        timeout=20000)
+    # 原列表中已经有这些源名，不能用「列表仍有行」等待异步归组完成。
+    with page.expect_response(
+            lambda r: r.url.endswith('/api/feed') and r.request.method == 'POST'
+            and (r.request.post_data_json or {}).get('act') == 'mark'
+            and (r.request.post_data_json or {}).get('group') == '夜里翻',
+            timeout=20000) as moved:
+        page.locator('#sheetActs button', has_text="夜里翻").first.click()
+    chk("归组请求明确成功", moved.value.json().get('ok') is True)
+    page.wait_for_function("() => feedGroups.some(g => g.group === '夜里翻' && g.feeds === 1)",
+                           timeout=20000)
     g = gp("mode=list")
     grp = {x.get("group"): x.get("feeds") for x in (g.get("groups") or [])}
     chk("移动真的落到后端（那一组现在有一个源）", grp.get("夜里翻") == 1, grp)

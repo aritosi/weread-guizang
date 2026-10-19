@@ -64,7 +64,7 @@ REPO = os.path.dirname(os.path.abspath(__file__))
 # 版本号只写在这一处：shell/build_macos.sh 会把它读出来盖进 Info.plist，
 # 打的 dmg 也就跟着叫同一个名字，不会再出现「界面一个数、访达另一个数」。
 # 界面「关于」那一类要显示它 —— 用户报问题时先问「你装的哪一版」，界面上能直接看到。
-VERSION = "1.2.3"
+VERSION = "1.2.4"
 
 # 这份 ui_server.py 的内容指纹。版本号比不出来的那部分靠它：源码直接跑的人
 # 改完代码未必动版本号，于是旧进程和新代码写着同一个数，谁也不认谁是旧的 ——
@@ -2363,7 +2363,12 @@ def _cover_cached(url):
     注释，抢 owner 的窗口里别人可能刚把图落盘）。
     """
     p = cover_url_path(url)
-    if not (os.path.isfile(p) and os.path.getsize(p) > 800):
+    try:
+        present = os.path.isfile(p) and os.path.getsize(p) > 800
+    except OSError:
+        # 清理缓存可能刚好发生在 isfile 与 getsize 之间；按未命中继续取图。
+        return None
+    if not present:
         return None
     try:
         with open(p + ".type", encoding="utf-8") as f:
@@ -3343,11 +3348,11 @@ _RAW_CHARS_CACHE_MAX = 4096
 def _raw_chars_key(raw_dir):
     """raw/*.json 的「这份目录变没变」签名，外加这一趟的文件名清单：`(sig, names)`。
 
-    `sig` 是 `(份数, 最新 mtime_ns)`；目录不在 / 空目录 / 扫到一半 stat 失败
+    `sig` 是 `(份数, 各文件名与 stat 的摘要)`；目录不在 / 空目录 / 扫到一半 stat 失败
     （文件刚好被删、权限变了）都回 `None` —— 调用方这一趟照旧逐份读，只是结果不进
     缓存：半份签名缓存下来会把一份不完整的和钉死。
     """
-    names, mtimes, complete = [], [], True
+    names, stamps, complete = [], [], True
     try:
         with os.scandir(raw_dir) as it:
             for e in it:
@@ -3355,14 +3360,17 @@ def _raw_chars_key(raw_dir):
                     continue
                 names.append(e.name)
                 try:
-                    mtimes.append(e.stat().st_mtime_ns)
+                    st = e.stat()
+                    stamps.append((e.name, st.st_mtime_ns, st.st_size, st.st_ino))
                 except OSError:
                     complete = False
     except OSError:
         return None, []
     if not names or not complete:
         return None, names
-    return (len(names), max(mtimes)), names
+    # 只用 max(mtime) 会漏掉仍早于最新章节的修改，以及等数量的换章。
+    signature = hashlib.sha256(repr(sorted(stamps)).encode("utf-8")).digest()
+    return (len(names), signature), names
 
 
 def list_books(module=None):

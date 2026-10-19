@@ -329,19 +329,25 @@ with sync_playwright() as pw:
     flush()
     chk("切回瀑布：网格回来了", page.locator(".sgrid > .wcard").count() >= 3)
     chk("切回瀑布：叠卡的舞台清掉了", page.locator(".sstack").count() == 0)
-    # 折叠面会关掉观察器；切回来必须重新挂上，否则瀑布永远停在「藏着」。
-    # 注意别要求「每张都没有 pre」——屏幕下方的卡本来就该藏着，等滚到再摊。
+    # 切回来后重新绑定滚动调度；卡片始终绘制，直接检查视口内的计算样式。
     rev = page.evaluate("""() => {
       const g = document.querySelector('.sgrid');
       const cs = [...g.querySelectorAll('.wcard')];
       const h = window.innerHeight;
-      const inView = cs.filter(c => c.getBoundingClientRect().top < h * .92);
+      const inView = cs.filter(c => {
+        const r = c.getBoundingClientRect();
+        return r.top < h * .92 && r.bottom > 0;
+      });
       return {bound: typeof revealGrid !== 'undefined' && revealGrid === g,
               inView: inView.length,
-              hidden: inView.filter(c => c.classList.contains('pre')).length,
+              hidden: inView.filter(c => {
+                const s = getComputedStyle(c);
+                return Number(s.opacity) < .99 || s.visibility === 'hidden';
+              }).length,
               io: !!revealIO};
     }""")
-    chk("切回瀑布：观察器重新盯着这张网格", rev["bound"] and rev["io"], rev)
+    # 卡片保持绘制后不再使用旧 grid._io；验证重绑滚动与真实可见状态。
+    chk("切回瀑布：滚动交互重新绑定", rev["bound"], rev)
     chk("切回瀑布：眼前这屏的卡都摊开了", rev["inView"] > 0 and rev["hidden"] == 0, rev)
     chk("瀑布：样式也记在本机", page.evaluate("() => localStorage.getItem('guizang_shelf_mode_v1')") == "grid")
 

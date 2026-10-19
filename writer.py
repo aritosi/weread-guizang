@@ -1185,7 +1185,7 @@ def export_image(html, dest, width=760, scale=2):
                                         device_scale_factor=max(1, min(int(scale), 3)))
                 page.goto("file://" + path, timeout=120000)
                 font_ok = _render_wait(page)
-                _render_atomic(dest, lambda out: page.screenshot(path=out, full_page=True))
+                _render_atomic(dest, lambda out: page.screenshot(path=out, type="png", full_page=True))
             finally:
                 browser.close()
     finally:

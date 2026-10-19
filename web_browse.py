@@ -104,6 +104,9 @@ class Blocked(ValueError):
 
 
 _SCHEME = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.\-]*:")
+_EXPLICIT_SCHEMES = frozenset(urllib.parse.uses_netloc) | {
+    "javascript", "data", "mailto", "about", "blob", "vbscript",
+}
 
 
 def normalize(raw):
@@ -123,7 +126,9 @@ def normalize(raw):
         # 开头」或「冒号后直接是数字」算 主机:端口，补 https 再看；其余
         # （`javascript:` / `data:` / `mailto:` / `ftp://`）一个字不动，仍归下面拒。
         head, _sep, rest = u.partition(":")
-        if head.lower() not in ALLOWED_SCHEMES and ("." in head or rest[:1].isdigit()):
+        # javascript:123 这类仍是显式协议，不能因为冒号后是数字改猜成主机。
+        if (head.lower() not in _EXPLICIT_SCHEMES
+                and ("." in head or rest[:1].isdigit())):
             u = "https://" + u
     # urlparse 自己会对半个 IPv6 方括号（`http://[::1`、`https://[`）当场抛 ValueError。
     # 它不是 Blocked，`browse()` 只接 Blocked —— 异常会一路穿出 /api/browse，客户端拿到

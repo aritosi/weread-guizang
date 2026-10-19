@@ -47,6 +47,7 @@ import sys
 import tempfile
 import threading
 import types
+from playwright._impl._element_handle import determine_screenshot_type
 
 HERE = pathlib.Path(__file__).resolve().parent
 REPO = HERE.parent
@@ -101,7 +102,10 @@ class _FakePage:
     def evaluate(self, *_a, **_k):
         return None
 
-    def screenshot(self, path=None, full_page=False):
+    def screenshot(self, path=None, full_page=False, type=None):
+        # 使用真实 Playwright 的格式推断：.part 不能靠扩展名推成 PNG。
+        if type is None:
+            determine_screenshot_type(path)
         self.sink(path)
 
     def pdf(self, path=None, **_k):

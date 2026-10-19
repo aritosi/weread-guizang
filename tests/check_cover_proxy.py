@@ -64,6 +64,13 @@ class CoverProxyTests(unittest.TestCase):
             self.assertEqual(ui_server.fetch_cover_url(URL), first)
             self.assertEqual(net.call_count, 1)
 
+    def test_cache_removed_during_lookup_does_not_stall_owner(self):
+        with patch.object(ui_server.os.path, "isfile", return_value=True), \
+                patch.object(ui_server.os.path, "getsize", side_effect=FileNotFoundError), \
+                patch.object(ui_server.urllib.request, "urlopen", return_value=Response()):
+            self.assertIsNotNone(ui_server.fetch_cover_url(URL))
+        self.assertNotIn(URL, ui_server._cover_fetching)
+
     def test_rejects_non_image_and_backs_off(self):
         with patch.object(ui_server.urllib.request, "urlopen",
                           return_value=Response(b"<html>" + b"x" * 2000,

@@ -15,6 +15,7 @@ import os
 import socket
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.error
 import urllib.request
@@ -59,10 +60,12 @@ def wait_up(port, tries=60):
 def main():
     port = free_port()
     selftest.SANDBOX.mkdir(parents=True, exist_ok=True)
+    private = tempfile.TemporaryDirectory(prefix="fallback-runtime-", dir=selftest.SANDBOX)
     log_path = str(selftest.SANDBOX / "fallback-test.log")
     with open(log_path, "w") as logf:
         # 沙盒数据目录：这个测试起的是真服务，不能去翻用户自己的 cache 和 ~/Documents/归藏。
-        env = dict(os.environ, GUIZANG_DATA=str(selftest.CACHE), GUIZANG_BOOKS=str(selftest.BOOKS))
+        env = dict(os.environ, GUIZANG_DATA=private.name,
+                   GUIZANG_BOOKS=str(Path(private.name) / "books"))
         proc = subprocess.Popen([PY, "ui_server.py", "--port", str(port)],
                                 cwd=ROOT, env=env, stdout=logf,
                                 stderr=subprocess.STDOUT, text=True)
@@ -72,12 +75,20 @@ def main():
             print("服务没起来，测试无法进行")
             return 2
 
-        # ① 必定抛异常：name 传数字，(5 or "").strip() → AttributeError
+        # 数字 name 已由字段校验正常拒绝，不再能制造异常。隔离目录中的账本
+        # 故意被目录挡住，让合法动作实际遭遇落盘错误，真正检验异常兜底。
+        blocker = Path(private.name) / "cache/library.json"
+        if blocker.is_file():
+            blocker.unlink()
+        blocker.mkdir(parents=True, exist_ok=True)
+        error_type = ""
         try:
-            status, body = post(port, {"action": "folder.new", "name": 5})
+            status, body = post(port, {"action": "folder.new", "name": "兜底测试"})
+            error_type = next((kind for kind in ("IsADirectoryError", "PermissionError", "OSError")
+                               if kind in (body.get("msg") or "")), "")
             checks.append(("HTTP 200", status == 200, status))
             checks.append(("回了 JSON 且 ok=false", body.get("ok") is False, body))
-            checks.append(("消息里点出异常类型", "AttributeError" in (body.get("msg") or ""), body.get("msg")))
+            checks.append(("消息里点出异常类型", bool(error_type), body.get("msg")))
         except urllib.error.HTTPError as e:
             checks.append(("HTTP 200", False, f"HTTPError {e.code}"))
         except Exception as e:                       # RemoteDisconnected 就落这里
@@ -86,19 +97,25 @@ def main():
         # ② 服务还活着，正常操作照旧
         status, body = post(port, {"action": "no.such.action"})
         checks.append(("异常之后仍能服务", status == 200 and body.get("msg") == "未知操作", body))
+        blocker.rmdir()
+        status, body = post(port, {"action": "folder.new", "name": "兜底测试"})
+        checks.append(("撤除故障后同一合法动作成功", status == 200 and body.get("ok") is True, body))
 
         # ③ 用户能看到的「进展」栏里留下了可追的行（log() 只进内存环形缓冲）
         time.sleep(0.4)
         with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/log?tail=60", timeout=5) as r:
             lines = [x.get("s", "") for x in json.loads(r.read().decode()).get("lines", [])]
         hit = [l for l in lines if "操作失败" in l]
-        checks.append(("进展栏留下「操作失败」", bool(hit) and any("AttributeError" in l for l in lines), hit[:1]))
+        checks.append(("进展栏留下「操作失败」", bool(hit) and bool(error_type)
+                       and any(error_type in l for l in lines), hit[:1]))
     finally:
         proc.terminate()
         try:
             proc.wait(timeout=10)
         except subprocess.TimeoutExpired:
             proc.kill()
+            proc.wait(timeout=5)
+        private.cleanup()
 
     bad = [c for c in checks if not c[1]]
     for name, ok, detail in checks:
