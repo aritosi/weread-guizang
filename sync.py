@@ -10,8 +10,13 @@
 - **同步三样，各自可勾**：本机阅读时间、阅读记录（书架状态与划线索引）、
   整本书库文件。前两样是小 JSON，随便传；书库可能很大，默认不开，由用户勾。
 
-- **不删除**：无论哪一端，只做「补齐」不做「清理」。远端有本地没有的就拉下来，
-  本地有远端没有的就推上去。同一个文件都有的，比大小与修改时间，取新的那份。
+- **不删除**：无论哪一端，只做「补齐」不做「清理」。本地没有、远端有就拉下来；
+  本地有就推上去。**两边都有的那三本小账本**（`cache/readstat.json` /
+  `cache/library.json` / `cache/notes_index.json`）再比一次修改时间，远端确实
+  更新就取回来（见 `LEDGER_REMOTE`）—— 否则换机时「在 A 上读的进度、存的书架」
+  B 上永远拿不到（本机那份一直在，同步就永远只上传）。远端时间问不到时退回
+  「本机为准」，与这份实现之前的行为一字不差。书库文件（可能几千个）不做这一比：
+  每个文件多一次 PROPFIND 会把大书库的同步请求数直接翻倍，仍以本机那份为准。
   这样最坏情况是留了多余文件，绝不会因为同步把谁的笔记删没了。
 
 - **密钥不出本机**：WebDAV 密码、OneDrive 令牌都只存在本机 config.json，
@@ -19,6 +24,8 @@
 """
 
 import base64
+import datetime
+import email.utils
 import json
 import os
 import re
@@ -365,6 +372,115 @@ def _ms_get(c, path):
         raise
 
 
+def _http_date(text):
+    """WebDAV 的 `getlastmodified`（RFC 1123 GMT）→ 秒；认不出回 0。
+
+    服务器回的这份时间是**外站文本**：格式不对、是空串、被反代插了一页 HTML 都
+    可能。认不出回 0 而不是抛 —— 调用方按「远端时间问不到」处理，退回老的
+    「本机这份为准」，绝不因为一个时间字段把整趟同步打断。
+    """
+    try:
+        d = email.utils.parsedate_to_datetime(str(text or "").strip())
+    except Exception:
+        return 0
+    if d is None:
+        return 0
+    try:
+        if d.tzinfo is None:
+            d = d.replace(tzinfo=datetime.timezone.utc)
+        return int(d.timestamp())
+    except Exception:
+        return 0
+
+
+def _iso_epoch(text):
+    """Graph 的 `lastModifiedDateTime`（ISO8601，常见尾缀 `Z`）→ 秒；认不出回 0。"""
+    try:
+        d = datetime.datetime.fromisoformat(str(text or "").strip().replace("Z", "+00:00"))
+    except Exception:
+        return 0
+    try:
+        if d.tzinfo is None:
+            d = d.replace(tzinfo=datetime.timezone.utc)
+        return int(d.timestamp())
+    except Exception:
+        return 0
+
+
+def _dav_meta(c, path):
+    """问远端那一份的属性：`{"size": 字节, "mtime": 秒}`，问不到回 None。
+
+    只有 PROPFIND 这一条路能拿到 WebDAV 文件的修改时间。刻意不引 XML 解析器：
+    这段回包来自这台机器之外，用 `xml.etree` 解外站 XML 等于把实体展开那一族
+    风险重新请进来（仓库里解析外站 XML 的地方都自带 DTD 闸），而我们只要两个
+    简单字段 —— 按标签名抠出来就够，抠不到就当「问不到」。
+    """
+    url = c["webdav"]["url"] + "/" + urllib.parse.quote(path)
+    h = _dav_headers(c)
+    h["Depth"] = "0"
+    h["Content-Type"] = "application/xml; charset=utf-8"
+    body = ('<?xml version="1.0" encoding="utf-8"?>'
+            '<d:propfind xmlns:d="DAV:"><d:prop><d:getlastmodified/>'
+            '<d:getcontentlength/></d:prop></d:propfind>').encode("utf-8")
+    try:
+        with _http("PROPFIND", url, data=body, headers=h, timeout=30) as r:
+            xml = r.read(256 * 1024).decode("utf-8", "replace")
+    except Exception:
+        # 不是「文件不存在」就是服务器不认这条请求（405 / 501 / 反代截胡）：
+        # 两种都当「问不到」，由调用方决定退回老口径。401 / 403 同样吞在这里，
+        # 真没权限时紧接着那一下 PUT / GET 会照常把话说明白。
+        return None
+    m = re.search(r"<[^>]*getlastmodified[^>]*>([^<]+)<", xml, re.I)
+    n = re.search(r"<[^>]*getcontentlength[^>]*>([^<]*)<", xml, re.I)
+    mtime = _http_date(m.group(1)) if m else 0
+    size = _int(n.group(1)) if n else 0
+    if not mtime and not size:
+        return None
+    return {"size": size, "mtime": mtime}
+
+
+def _ms_meta(c, path):
+    """OneDrive 那边同一个问法：Graph 的 item 元数据（不带 `/content`）。"""
+    url = "%s/me/drive/special/approot:/%s" % (GRAPH, urllib.parse.quote(path))
+    try:
+        with _http("GET", url, headers=_ms_headers(c), timeout=30) as r:
+            j = _json_obj(r.read())
+    except Exception:
+        return None
+    mtime = _iso_epoch(j.get("lastModifiedDateTime"))
+    size = _int(j.get("size"))
+    if not mtime and not size:
+        return None
+    return {"size": size, "mtime": mtime}
+
+
+def _settle_mtime(path, when):
+    """取回远端那一份之后，把本机这份的修改时间对齐成远端的。
+
+    不对齐就会来回打乒乓球：取回那一刻本机时间总是「现在」，下一次同步又成了
+    本机更新 → 再传上去 → 对面也这么想 → 两边每次都传一遍。对齐之后两边时间
+    一致，「谁更新」这个问题不再每次都翻面（内容相同的重复上传仍可能有，但不会
+    变成两边轮流取回）。
+    """
+    if not when:
+        return
+    try:
+        os.utime(path, (int(when), int(when)))
+    except OSError:
+        pass
+
+
+# 只有这三本小账本走「比修改时间、取新的那份」。
+#
+# 为什么不是全部：WebDAV 要问出一个文件的修改时间就得对它发一次 PROPFIND
+#（Graph 是另一次 item 请求），而书库文件可能几千个 —— 每个文件先问一次远端
+# 属性，请求数直接翻倍，大书库会明显变慢。这三本小账本是「换机时最想带过去」
+# 的东西（书架状态 / 划线索引 / 阅读时长），各一次请求，代价可以忽略。
+# 书库文件仍按这条通道本来的规矩办：本机有就以本机为准传上去。
+LEDGER_REMOTE = frozenset(REMOTE_ROOT + "/cache/" + n for n in
+                          ("readstat.json", "library.json", "notes_index.json"))
+
+
 def _ms_test(c):
     url = "%s/me/drive/special/approot" % GRAPH
     try:
@@ -539,7 +655,9 @@ def _remote_dir(path):
 def run(cfg, cache_dir, books_dir, log=None):
     """跑一次同步。返回 (ok, 汇总人话)。
 
-    规则：本地有、远端就传上去；本地没有、远端有就拉下来。只增不删。
+    规则：本地没有、远端有就拉下来；两边都有的，那三本小账本比一次修改时间
+    （`LEDGER_REMOTE`）—— 远端确实更新就取回来，否则照旧把本机这份传上去；
+    书库文件一律本机为准。只增不删。
     每个文件都包一层 try —— 一个文件失败不该让整趟同步断掉，
     最后汇总里会数清楚成功了几个、失败几个。
     """
@@ -551,32 +669,51 @@ def run(cfg, cache_dir, books_dir, log=None):
     if not pairs:
         return False, "没有勾选任何要同步的内容"
 
+    webdav = c["provider"] == "webdav"
+    get_fn = _dav_get if webdav else _ms_get
+    put_fn = _dav_put if webdav else _ms_put
+    meta_fn = _dav_meta if webdav else _ms_meta
     up = down = fail = 0
     first_err = ""
     made_dirs = set()
     for remote, local in pairs:
         try:
             blob = None
+            local_mtime = 0
             if os.path.isfile(local):
                 with open(local, "rb") as f:
                     blob = f.read()
-            if c["provider"] == "webdav":
+                try:
+                    local_mtime = int(os.path.getmtime(local))
+                except OSError:
+                    local_mtime = 0
+            if webdav:
                 rdir = _remote_dir(remote)
                 if rdir not in made_dirs:
                     _dav_mkdir(c, rdir)
                     made_dirs.add(rdir)
-                if blob is not None:
-                    _dav_put(c, remote, blob)
-                    up += 1
-                    continue
-                got = _dav_get(c, remote)
-            else:
-                if blob is not None:
-                    _ms_put(c, remote, blob)
-                    up += 1
-                    continue
-                got = _ms_get(c, remote)
+            if blob is not None:
+                # 两边都有的那一份：只有小账本去问远端时间，且只有远端**确实更新**
+                # 才取回来。问不到（服务器不认 PROPFIND、代理插了一页 HTML、超时）
+                # 就退回这条通道本来的规矩「本机为准传上去」—— 一次属性查询失败
+                # 绝不能把用户的本地改动挡在云外面。
+                if remote in LEDGER_REMOTE and local_mtime:
+                    try:
+                        meta = meta_fn(c, remote)
+                    except Exception:
+                        meta = None
+                    if meta and meta.get("mtime") and meta["mtime"] > local_mtime + 1:
+                        got = get_fn(c, remote)
+                        if got is not None:
+                            _write_atomic(local, got)
+                            _settle_mtime(local, meta.get("mtime"))
+                            down += 1
+                            continue
+                put_fn(c, remote, blob)
+                up += 1
+                continue
             # 走到这儿＝本地没有、只能从远端拉
+            got = get_fn(c, remote)
             if got is not None:
                 _write_atomic(local, got)
                 down += 1
