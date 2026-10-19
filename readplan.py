@@ -283,7 +283,8 @@ def put_plan(store, bid, title, total, period, amount, now=None, target=""):
     """建或改一本书的计划。total 是当前总页数（由书本目录现算）。
 
     改计划保留已读高水位与已有的每日账：换个目标不该把读过的部分清零，否则
-    「改个目标」就等于自己给自己记了个「今天白读」。
+    「改个目标」就等于自己给自己记了个「今天白读」。终点日则跟着**新节奏**走：
+    改了每天 / 每周读多少就重推一次，只有节奏没变的重存才沿用旧终点日。
     """
     store.setdefault("plans", {})
     now = int(now if now is not None else time.time())
@@ -291,13 +292,25 @@ def put_plan(store, bid, title, total, period, amount, now=None, target=""):
     old = store["plans"].get(bid)
     base = old if (old and not old.get("done_at")) else None
     started = base["started"] if base else _day_from_epoch(now)
+    # 终点日：调用方明确给了一个日期就照用；没给时，新建或**改了节奏**就按新节奏
+    # 重推，只有「节奏没变的重存」才沿用旧值。
+    #
+    # 旧写法一律 `base["target"]`：界面「调整目标」只发 period + pages、从不发 target
+    #（`ui.html` 的 `plSave` 那一段），于是把每天 20 页改成 100 页之后，界面上那句
+    # 「预计读完 … 截止」与 `on_pace` / `need_pace` 仍然是拿旧终点日算的 —— 改完节奏
+    # 看不出任何变化。节奏没变时不重推：书补了新章、总页数变大也不该把终点日挪走。
+    if _DAY_RE.match(str(target or "")):
+        want_target = target
+    elif base and _norm_goal(base.get("goal")) == g:
+        want_target = base["target"]
+    else:
+        want_target = suggest_target(started, total, g)
     p = {
         "title": str(title or (base or {}).get("title") or "")[:120],
         "pages": max(1, _int(total, 1, PAGE_MAX)),
         "goal": g,
         "started": started,
-        "target": target if _DAY_RE.match(str(target or "")) else (
-            base["target"] if base else suggest_target(started, total, g)),
+        "target": want_target,
         "at": base["at"] if base else 0,
         "frac": base["frac"] if base else 0.0,
         "high": base["high"] if base else 0,
