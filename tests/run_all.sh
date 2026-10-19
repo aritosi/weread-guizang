@@ -98,6 +98,11 @@ run "认指纹读口形状（task 写成字符串 / 数组 / 数字不再让接�
 # 报没装）。这一条钉住「目录只有一处真相」（platform_compat）＋「~ 也认」＋「只认
 # chromium 目录、同名普通文件不算」，另加「裸系统 Python 也起得来」那条硬约束。
 run "首次运行环境判断（一把尺子 / ~ 写法 / 认哪些目录）" "$PY" tests/check_bootstrap.py
+# 第 4 步「ffmpeg 装没装」的判据：`ffmpeg_tool` 要的是 ffmpeg + ffprobe 两份，下载
+# 一前一后；断在第二份时盘上是「ffmpeg 有了、ffprobe 没有」，而首启原先只问 `found`
+# （ffmpeg 在不在）就会说「已有，跳过」，ffprobe 再也没人自动补 —— 长视频切段后量不出
+# 每段时长，时间戳叠在一起而界面不报错。这一条把普通那条路与冻结版钉在同一把尺子上。
+run "首启 ffmpeg 判据（ffmpeg 在、ffprobe 缺也要去补 / 半装不谎报就绪）" "$PY" tests/check_bootstrap_ffmpeg.py
 # macOS 的 XPC_FLAGS 0x2 位会让 Chromium 一 fork 就被系统收走（症状是「浏览器窗口弹不出来」
 # 加一句看不懂的 Target page…closed）。2026-10-15 报的那组「微信读书连不上 / 一堆功能失效」
 # 就出在这。这一条钉住「哪几位清、哪几位留、脏值不炸、真入口都过这把尺子」。
