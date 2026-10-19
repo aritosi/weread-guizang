@@ -63,7 +63,6 @@ _XML_ILLEGAL = re.compile(
 FORMS = (("tree", "括号图"), ("radial", "辐射图"),
          ("fishbone", "鱼骨图"), ("concept", "概念图"))
 FORM_BY_KEY = dict(FORMS)
-FORM_NAME = {k: n for k, n in FORMS}
 
 # ── 视觉语言（与 book_notes 的只读导图同一套米色纸，自成一体，不 import 那边）──
 _PAPER = "#fbf7ef"
