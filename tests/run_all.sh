@@ -810,6 +810,15 @@ run "写作导出参数（脏 scale 当没传 / 越界夹住 / 一处接线）" 
 # 三面对照：直接覆盖写写一半真会截掉旧档、写崩旧档逐字节不动、固定名共用临时件时
 # 两只手至少一只 FileNotFoundError。全程探针顶掉 writer_source / os.replace，离线。
 run "写作导出 Markdown 原子落盘（写一半不毁旧档 / 并发不交织 / 失败收干净）" "$PY" tests/check_writer_export_atomic.py
+# 上一条收的是四颗导出按钮里唯一不经渲染的 md 档（`open(dest,"w")` 直写）。png / pdf
+# 这两档当时没跟着收：`writer.export_image` / `export_pdf` 把铬内核的产物直接写到终稿上
+# （`page.screenshot(path=dest)` / `page.pdf(path=dest)`），与 `book_export.build_pdf`
+# 收口前的形状一模一样 —— 渲到一半失败 / 整趟被强杀就在终稿上留半张图 / 半份 PDF，
+# 而它已经顶掉了上一份完整导出；`/api/writer/export` 又是请求线程直接调的，连点两次
+# 导出就是两条线程往同一个 dest 上落。这一条用假铬内核钉住两档都走 `_render_atomic`
+# （同目录 pid + 随机串的 `.part` + os.replace + BaseException 收残件），并带「直写终稿
+# 写到一半确实把旧导出截成半份」的对照与两个写者同时导同一篇的并发面。离线，不开浏览器。
+run "写作导出渲染落盘（PNG/PDF 临时件一次一个名 / 写一半不毁旧档 / 并发不成混血）" "$PY" tests/check_writer_render_atomic.py
 # 上一条管「脏字段折不成数」，这一条管「脏字符写不进 utf-8」。写作这一格的正文按
 # utf-8 写、meta.json 与 _books.json 按 ensure_ascii=False 写，而浏览器把 JS 字符串
 # 拦腰截断时会留下落单的半个代理码点（json.loads 收得下 "\ud83d"）：老代码在
