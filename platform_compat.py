@@ -609,8 +609,72 @@ def backend_identity(port, timeout=1.5):
             "running": bool(task.get("running")) if isinstance(task, dict) else False}
 
 
+def _pids_from_lsof(out, port):
+    """`lsof -t` 那一档：一行一个 PID，别的都不是。"""
+    return [int(x) for x in (out or "").split() if x.strip().isdigit()]
+
+
+def _pids_from_ss(out, port):
+    """`ss -lptn` 的输出：认「本地地址那一列就是这个端口」的行，再取 users:(…) 里的 pid。
+
+    列序是 State / Recv-Q / Send-Q / Local / Peer / Process；别人名下的进程那一列是空
+    的，取不到就当没有（外加上层 `is_our_backend` 还要核一遍命令行）。
+    """
+    pids = []
+    for line in (out or "").splitlines():
+        cols = line.split()
+        if len(cols) < 4 or cols[0] != "LISTEN":
+            continue
+        if cols[3].rsplit(":", 1)[-1] != str(port):
+            continue
+        for m in re.findall(r"pid=(\d+)", line):
+            n = int(m)
+            if n not in pids:         # 同一个 pid 常在 v4 / v6 两行各出现一次
+                pids.append(n)
+    return pids
+
+
+def _pids_from_netstat(out, port):
+    """`netstat -tlnp` 的输出：列序是 Proto / Recv-Q / Send-Q / Local / Foreign / State /
+    `PID/程序名`（最后那列要带 -p 才有）。Local 是第三列、State 是第五列、PID 在第六列。
+
+    别跟 Windows 那条 netstat 混：那边是 Proto / Local / Foreign / State / PID，列序
+    不是同一份。
+    """
+    pids = []
+    for line in (out or "").splitlines():
+        cols = line.split()
+        if len(cols) < 7 or not cols[0].lower().startswith("tcp"):
+            continue
+        if cols[5].upper() != "LISTEN" or cols[3].rsplit(":", 1)[-1] != str(port):
+            continue
+        head = cols[6].split("/", 1)[0]
+        if head.isdigit():
+            n = int(head)
+            if n not in pids:         # 同一个 pid 常在 v4 / v6 两行各出现一次
+                pids.append(n)
+    return pids
+
+
+# POSIX 上问「谁在听这个端口」的三条命令，按顺序试、问到就停。lsof 是 macOS 与多数
+# Linux 发版自带的那一条；精简安装（容器、Alpine、只装了 iproute2 的机器）常常没有它，
+# 而旧写法在 lsof 缺席时直接回 0 —— 端口上明明是自己家的旧后端，`port_verdict` 也只能
+# 判 stranger，「自动接管 / 一键换班」静默失效，退回到「旧后端挡着新功能」那套老症状
+# （后端旧、界面新，新功能一律 404）。所以后两条是给这一档兜底的，不是要换掉 lsof。
+_POSIX_PID_CMDS = (
+    (["lsof", "-nP", "-iTCP:{port}", "-sTCP:LISTEN", "-t"], _pids_from_lsof),
+    (["ss", "-lptn"], _pids_from_ss),
+    (["netstat", "-tlnp"], _pids_from_netstat),
+)
+
+
 def port_listener_pid(port):
-    """谁在听这个端口。认不出来回 0 —— 宁可不动，也不猜着杀。"""
+    """谁在听这个端口。认不出来回 0 —— 宁可不动，也不猜着杀。
+
+    三条命令都只列「本进程有权限看到」的 PID：别人的进程在 ss / netstat 里就是空的，
+    认不出照旧回 0；`is_our_backend` 还会再核一遍命令行，绝不会猜着杀。
+    """
+    port = int(port)
     if IS_WIN:
         # netstat 的第四列是本地地址:端口，第五列是 PID；拿不到就回 0
         try:
@@ -627,13 +691,16 @@ def port_listener_pid(port):
                 except ValueError:
                     return 0
         return 0
-    try:
-        out = subprocess.run(["lsof", "-nP", "-iTCP:%d" % int(port), "-sTCP:LISTEN", "-t"],
-                             capture_output=True, text=True, timeout=10).stdout
-    except Exception:
-        return 0
-    pids = [int(x) for x in out.split() if x.strip().isdigit()]
-    return pids[0] if pids else 0
+    for argv, parse in _POSIX_PID_CMDS:
+        try:
+            out = subprocess.run([a.format(port=port) for a in argv],
+                                 capture_output=True, text=True, timeout=10).stdout
+        except Exception:
+            continue                  # 这条命令不在（FileNotFoundError 等）：问下一条
+        pids = parse(out, port)
+        if pids:
+            return pids[0]
+    return 0
 
 
 def is_our_backend(pid, script="ui_server.py"):
