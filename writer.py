@@ -354,6 +354,12 @@ def create(books_root, title="", text=""):
     _write_text_atomic(draft_path(d), body)
     meta["rev"] = 1
     meta["words"] = words(body)["total"]
+    # `chars` 必须跟 `words` 同一个数，与 `save()` 那一条同一口径：书库清单
+    # （`/api/state` 的 `books`，`list_books` 只读 `meta.chars`）与写作屏（读
+    # `meta.words`）是两处读数，建稿时只补 words 不补 chars，同一篇稿子在这两处
+    # 报的就是两个数 —— 用户还没点过「新建」就先落下第一句（`wrStartDoc`）建出来的
+    # 稿子，在书架 / MCP 的 shelf_list 上显示「0 字」，一直到下次保存才自己修好。
+    meta["chars"] = meta["words"]
     meta = _write_meta(d, meta)
     return book_id, meta
 
