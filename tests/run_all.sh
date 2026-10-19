@@ -1003,6 +1003,11 @@ run "壁纸原子落盘（写到一半不毁旧档 / 并发不交织 / 不留 .t
 # 就是 60 个请求同时砸出去（实测首屏可见的只有 12 张）。这一条把「滚到眼前才点亮」的接线
 # 钉在静态段，同时守住那几代收口（Referer / 协议归一 / 图床退路 / 首字书脊）没被顺手拆掉。
 run "封面按需加载（滚到眼前才点亮 / 不一次砸出 60 个请求）" "$PY" tests/check_cover_lazy.py
+# 封面这一族还有一处没走 extCoverImg：划线笔记那一墙自己拼 <img>（nbCard），于是漏了
+# 「no-referrer」与「不收 Referer、不要 Key 的后端代取 /api/cover?url=」两条收口 ——
+# 直连被微信 / QQ 图床按 Referer 回 403，只能去问要 Key 的官方接口，封面亮得慢甚至不亮。
+# 这一条把这一墙的接线钉在静态段，并留一条「旧写法会判红」的对照。
+run "划线笔记封面退路（no-referrer / coverSrc 归一 / ?url= 代取与顺序）" "$PY" tests/check_cover_referrer.py
 # 上一条修的是瀑布那一面；叠卡那一面当时留了一句没核对的假设 ——「一次只摊 7 张，
 # 都在视口里」，于是把整张舞台都交给了 paintCovers（margin 无穷大）。可 fillGrid 把
 # **整批**（SHELF_BATCH = 60 本）都塞进舞台，applyStack 只把远的那几张贴上 opacity:0 的
