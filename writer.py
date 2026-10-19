@@ -1122,6 +1122,42 @@ def _launch(pw):
     return pw.chromium.launch()
 
 
+def _artifact_tmp(path):
+    """渲染产物的临时件名：与终稿同目录的 `<目标>.<pid>.<八位随机>.part`。
+
+    与 `book_export.build_epub` / `build_pdf`、`ui_server._atomic_artifact` 同一把
+    尺子（《交接说明》§2 那本账里的「落盘临时件」一族）：铬内核先往这个件上写，
+    写完整了再 `os.replace` 顶替终稿。名字带 pid 与随机串，两个请求线程同时导同一
+    篇也不会落在同一个件上。
+    """
+    return "%s.%d.%s.part" % (path, os.getpid(), uuid.uuid4().hex[:8])
+
+
+def _render_atomic(dest, fill):
+    """让 `fill(临时件路径)` 把渲染产物写进临时件，成功了再原子顶替 dest。
+
+    两个代价原先都在 `page.screenshot(path=dest)` / `page.pdf(path=dest)` 这一句上：
+    铬渲到一半失败、整趟被强杀（关窗口 / 断电 / 强杀），`dest` 上就留着半张图 /
+    半份 PDF，而它已经顶掉了上一份完整导出；`/api/writer/export` 又是请求线程里
+    直接调的（服务是 ThreadingHTTPServer），连点两次导出就是两条线程往同一个
+    `dest` 上落。写失败 / 中止（`BaseException`）先把临时件收干净再往外抛，终稿
+    始终是完整的上一份。
+    """
+    d = os.path.dirname(dest)
+    if d:
+        os.makedirs(d, exist_ok=True)
+    out = _artifact_tmp(dest)
+    try:
+        fill(out)
+        os.replace(out, dest)
+    except BaseException:
+        try:
+            os.remove(out)
+        except OSError:
+            pass
+        raise
+
+
 def export_image(html, dest, width=760, scale=2):
     """一张长图：稿子整页截下来，宽度锁死在排版模板那一档。
 
@@ -1143,7 +1179,7 @@ def export_image(html, dest, width=760, scale=2):
                                         device_scale_factor=max(1, min(int(scale), 3)))
                 page.goto("file://" + path, timeout=120000)
                 font_ok = _render_wait(page)
-                page.screenshot(path=dest, full_page=True)
+                _render_atomic(dest, lambda out: page.screenshot(path=out, full_page=True))
             finally:
                 browser.close()
     finally:
@@ -1168,9 +1204,10 @@ def export_pdf(html, dest, paper="A4"):
                 page.goto("file://" + path, timeout=120000)
                 _render_wait(page)
                 # page.pdf() 不吃 timeout（超时由上面那一跳控制），别往上加
-                page.pdf(path=dest, format=paper, print_background=True,
-                         margin={"top": "16mm", "bottom": "16mm",
-                                 "left": "15mm", "right": "15mm"})
+                _render_atomic(dest, lambda out: page.pdf(
+                    path=out, format=paper, print_background=True,
+                    margin={"top": "16mm", "bottom": "16mm",
+                            "left": "15mm", "right": "15mm"}))
             finally:
                 browser.close()
     finally:
