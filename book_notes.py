@@ -602,6 +602,17 @@ def _node(label, kids=None, color=None):
     return {"label": label, "kids": kids or [], "color": color}
 
 
+def _more_node(n, color=None):
+    """一个分支被 _LEAF_PER_BRANCH 截断时补的那一句「还有 N 条」。
+
+    为什么必须有：图为了好看会封顶，但**封顶不能是静默的** —— 少画的那些叶子在界面上
+    看不出是「本来就没有」还是「被裁掉了」。原先只有标签分组那一支写了这句，笔记条目
+    两支（`笔记条目` 分支与 `cut=entry` 整棵树）直接切片，第 15 条以后凭空消失、也不
+    报数；同一件事的两种表现，留一处真相，三处都从这里取。
+    """
+    return _node("还有 %d 条" % int(n), color=color)
+
+
 def _headings(body):
     """条目正文里的标题行 → 子分支（一到三级，去掉 Markdown 记号）。
 
@@ -628,9 +639,12 @@ def note_tree(doc, meta=None, titles=None, book_label="", cut="tag"):
     root = _node(book_label or meta.get("title") or "这本书")
 
     if cut == "entry":
-        for e in entries[:_LEAF_PER_BRANCH * 2]:
+        shown = entries[:_LEAF_PER_BRANCH * 2]
+        for e in shown:
             kids = [_node(h) for h in _headings(e.get("body"))]
             root["kids"].append(_node(_clip(e.get("title") or "无标题", 40), kids))
+        if len(entries) > len(shown):
+            root["kids"].append(_more_node(len(entries) - len(shown), "#8fb7a6"))
         return root
 
     groups = {}
@@ -654,13 +668,16 @@ def note_tree(doc, meta=None, titles=None, book_label="", cut="tag"):
             txt = _clip(m.get("text"), 60)
             leaves.append(_node(txt + ("　→ " + memo if memo else ""), color=g["color"]))
         if len(g["items"]) > len(leaves):
-            leaves.append(_node("还有 %d 条" % (len(g["items"]) - len(leaves)), color=g["color"]))
+            leaves.append(_more_node(len(g["items"]) - len(leaves), g["color"]))
         root["kids"].append(_node(k, leaves, color=g["color"]))
 
     if entries:
+        shown = entries[:_LEAF_PER_BRANCH]
         es = [_node(_clip(e.get("title") or "无标题", 40),
                     [_node(h) for h in _headings(e.get("body"))])
-              for e in entries[:_LEAF_PER_BRANCH]]
+              for e in shown]
+        if len(entries) > len(shown):
+            es.append(_more_node(len(entries) - len(shown), "#8fb7a6"))
         root["kids"].append(_node("笔记条目", es, color="#8fb7a6"))
     return root
 
