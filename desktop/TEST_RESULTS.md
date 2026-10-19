@@ -5,27 +5,28 @@
 ## 本地产物
 
 - DMG：`dist/macos/归藏-1.2.4-arm64.dmg`，449.0 MiB。
-- SHA256：`4495c0bb104ff2ecf2b721d0233c83c8a37fc123a0683cc636e23795d726bdb3`。
+- SHA256：`7e6d9e5eb26b03b97884dbc12909fc2181ffca602e878380c2a57f75c544f3f5`。
 - 该哈希对应本机构建；GitHub 重建产物请使用对应 Release 的 `SHA256SUMS.txt` 校验。
 - 1.2.3 历史记录见 [原验收记录](TEST_RESULTS_1.2.3.md)。
 
 ## 合并与审查
 
-整合 #219–#246 共 28 个 PR，保留原提交祖先；解决架构地图和测试入口冲突，并修复审查发现的缓存失效、PNG 临时文件类型、封面并发清理及地址协议边界。详细标准轴与规格轴结论见 [PR 整合记录](../docs/PR整合验收-2026-10-19.md)。
+整合 #219–#247 共 29 个 PR，保留原提交祖先；解决架构地图和测试入口冲突，并修复审查发现的缓存失效、PNG 临时文件类型、封面并发清理及地址协议边界。详细标准轴与规格轴结论见 [PR 整合记录](../docs/PR整合验收-2026-10-19.md)。
 
 ## 验证结果
 
 | 检查 | 结果 |
 | --- | --- |
-| 离线回归 | 261 项通过，0 失败 |
-| 完整浏览器门禁 | 最终复验进行中；前两轮暴露的旧夹具与等待条件均已修正并单独通过 |
+| 离线回归 | 262 项通过，0 失败 |
+| 完整浏览器门禁 | 291 项通过，0 失败（262 项离线 + 29 项真实浏览器套件） |
 | 原生资源 | 76 个文件；arm64、动态库、最低系统与严格签名无错误 |
 | Python.framework 故障重现 | 隔离样本复现缺资源封印；签署整个 framework 后严格审计通过 |
 | DMG 实际安装 | 挂载、复制安装、卸载镜像后独立启动；签名验证通过 |
 | 冻结运行时 | 依赖、CA、Node/EJS、脚本分派、有头/无头浏览器、PDF、媒体处理通过 |
+| 冻结笔记读取 | 异常 list/dict 标签安全收口，2 条划线及 1 条条目完整保留，使用包内模块 |
 | 安装后功能 | Markdown 导入、EPUB/PDF/ZIP 导出、配置、重启及持久化通过 |
 | 进程回收 | SIGTERM、强制宿主退出、真实 Chromium 后代清理通过 |
-| 600 本书双向滚动 | 2136 次可见卡采样，透明卡 0 次 |
+| 600 本书双向滚动 | 2358 次可见卡采样，透明卡 0 次 |
 | 推荐与搜索封面 | 6 张推荐、12 张搜索封面全部加载，页内滚动 top=662 |
 | 图床故障 | 模拟 403 后，200 次代理回退成功 |
 | 写作拖动 | 归册、书内上下、跨书、散稿排序、取消、正文先保存、刷新持久化通过 |
@@ -43,7 +44,7 @@
 - `dist/macos/test-results/1.2.4-installation-result.json`
 - `dist/macos/test-results/1.2.4-runtime-self-test.json`
 - `dist/macos/test-results/app-native-1.2.4.json`
-- `dist/macos/test-results/ui-optimizations-installed-1.2.4/ui-result.json`
+- `dist/macos/test-results/ui-optimizations-installed-1.2.4-final/ui-result.json`
 - `dist/macos/test-results/source-full-1.2.4.log`
 
 ```bash
