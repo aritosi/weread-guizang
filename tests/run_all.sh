@@ -1300,6 +1300,13 @@ run "地址护栏反面输入（认不出的数值主机名不把护栏打抛）
 # （clip_article.url_block_reason 的 except ValueError），这一条把内置浏览器补齐，三层都钉：
 # 纯函数（Blocked 带人话）/ 对照 + 源码接线 + 跳转守卫 / in-process 真 Handler 裸 HTTP GET。
 run "内置浏览器地址收口（半个 IPv6 方括号回一页人话，不是空响应）" "$PY" tests/check_browse_url.py
+# 同一条路还有一个「把开头几个字符当成协议」的错判：地址栏里打 `example.com:8080`，
+# `_SCHEME` 会把 `example.com:` 整个当协议名，回一句「只认 http/https 链接（现在这个是
+# example.com）」，正常地址打不开。安娜那边 `with_scheme` 是同一个错法的另一份：判的是
+# `startswith("http")`，主机名本身以 http 开头（httpbin.org）就当「已有协议」，拼出来的
+# 窗口地址少一个协议头。这一条两处一起钉，并带「旧判据确实判错」的对照、
+# 以及「javascript: / data: / mailto: 仍拒」这一面不许被改松。纯函数、离线。
+run "地址协议判据（主机:端口补 https / http 开头的主机名不再当协议）" "$PY" tests/check_addr_scheme.py
 # 上一条把内置浏览器补齐了，注释里写「剪藏那份早收口了」—— 收口的只有 url_block_reason
 # 一个函数，真正拿地址的 clip_article.fetch / first_image 与 web_parse.platform_of / _guard
 # 各自又裸 urlparse 了一遍：粘一个 `http://[::1` 进来回的是 `Invalid IPv6 URL` 这句英文
