@@ -812,6 +812,73 @@ def public(m):
             "atts": list(m.get("atts") or []), "book": m.get("book") or ""}
 
 
+def shuffle_pick(data, limit=8, seen=(), tag=""):
+    """从一批笔记里随机挑几条，同一个自然日内不重复。
+
+    「每日回顾 / 随机漫游」的随机不能每次进来都换一批 —— 那既不叫回顾，用户也永远
+    记不住自己看过哪几条。所以两样一起：按天定种子（同一天同一批，第二天自然换新），
+    当天看过的那几条（前端存在本机，带回来）不再露脸。"""
+    rows = [m for m in (data.get("memos") or [])]
+    if tag:
+        rows = [m for m in rows if tag_match(m.get("tags") or [], tag)]
+    lim = max(1, min(int(limit or 8), 50))
+    total = len(rows)
+    if not total:
+        return {"picked": [], "total": 0, "day": _day_key(), "left": 0}
+    day = _day_key()
+    skipped = set(str(x) for x in (seen or []))
+    pool = [m for m in rows if str(m.get("id") or "") not in skipped]
+    # 全天都看过了：从头再来一轮（否则点「换一批」会变成没有东西可换）
+    if not pool:
+        pool = rows
+    if len(pool) <= lim:
+        picked = pool
+    else:
+        import random as _r
+        rng = _r.Random("%s|%s" % (day, tag))
+        idx = list(range(len(pool)))
+        rng.shuffle(idx)
+        picked = [pool[i] for i in idx[:lim]]
+    return {"picked": [public(m) for m in picked], "total": total,
+            "day": day, "left": max(0, len(pool) - len(picked))}
+
+
+def _day_key():
+    return time.strftime("%Y-%m-%d")
+
+
+def roam_pick(data, seen=(), tag="", seed=None):
+    """随机漫游：一次只给一条，像随手翻到很久以前某一页。
+
+    与「每日回顾」刻意分开两件事：
+      · 回顾是「今天这一批」，同一自然日固定，看完就停；
+      · 漫游是「再翻一条」，每点一次换一条，且不许撞上最近看过的那些 ——
+        seen 由前端传一个滚动窗口（最近 N 条），这里按它排除；窗口外不再限制，
+        所以几千条的老账也能一直被翻出来。
+    偏向旧一点的那一半：最值钱的是「自己都忘了写过」的那几条，新写的每天都在眼前。
+    """
+    rows = list(data.get("memos") or [])
+    if tag:
+        rows = [m for m in rows if tag_match(m.get("tags") or [], tag)]
+    total = len(rows)
+    if not total:
+        return {"memo": None, "total": 0, "left": 0}
+    skipped = set(str(x) for x in (seen or []))
+    pool = [m for m in rows if str(m.get("id") or "") not in skipped]
+    if not pool:                      # 整个窗口都翻过了：放开重来
+        pool = rows
+    # 旧的那一半优先；只剩几条时就不筛，免得永远只在那几条里打转。
+    if len(pool) >= 6:
+        ordered = sorted(pool, key=lambda m: int(m.get("ts") or 0))
+        older = ordered[:max(3, len(ordered) // 2)]
+        if older:
+            pool = older
+    import random as _r
+    rng = _r.Random(str(seed)) if seed is not None else _r.SystemRandom()
+    pick = pool[rng.randrange(len(pool))]
+    return {"memo": public(pick), "total": total, "left": max(0, len(pool) - 1)}
+
+
 def one(data, memo_id):
     for m in data.get("memos") or []:
         if m.get("id") == str(memo_id or ""):

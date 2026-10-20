@@ -264,10 +264,16 @@ with sync_playwright() as pw:
     page.wait_for_timeout(900)
     me = page.locator('#view > .vpane[data-pane="me"]')
     chk("真机：左上角头像点开就是个人主界面", me.count() == 1 and me.is_visible())
-    chk("真机：个人主界面有两张热力图 + 头像 / 名字 / 简介",
+    # 1.2.6 起个人主界面只「看」不「改」：头像 / 名字 / 简介照常显示（读后端那份
+    # profile），但换头像 / 改名字与简介这类编辑控件已从这一屏砍掉。断言随之从
+    # 「输入控件在不在」改成「展示元素在不在」——名字与简介用 .mename / .mebiosub 显示。
+    chk("真机：个人主界面有两张热力图 + 头像 / 名字 / 简介（展示态）",
         page.locator("#heat-study").count() == 1 and page.locator("#heat-write").count() == 1
-        and page.locator("#mePick").count() == 1 and page.locator("#meNameIn").count() == 1
-        and page.locator("#meBioIn").count() == 1)
+        and page.locator('#view > .vpane[data-pane="me"] .mename').count() == 1
+        and page.locator('#view > .vpane[data-pane="me"] .mebiosub').count() == 1)
+    chk("真机：个人主界面已砍掉头像 / 名字 / 简介的编辑控件",
+        page.locator("#mePick").count() == 0 and page.locator("#meEdit").count() == 0
+        and page.locator("#meForm").count() == 0)
     chk("真机：学习那张热力图铺满 371 格",
         page.locator("#heat-study .heatbody .heatcell").count() == 371,
         page.locator("#heat-study .heatbody .heatcell").count())

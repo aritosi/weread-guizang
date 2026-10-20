@@ -1,6 +1,14 @@
 # 更新记录
 
-本页记录面向使用者的主要变化。当前桌面成品为 [1.2.5 · macOS Apple Silicon](https://github.com/aritosi/weread-guizang/releases/tag/v1.2.5)，安装与数据说明见 [README](README.md)。
+本页记录面向使用者的主要变化。当前桌面成品为 [1.2.6 · macOS Apple Silicon](https://github.com/aritosi/weread-guizang/releases/tag/v1.2.6)，安装与数据说明见 [README](README.md)。
+
+## 1.2.6 · 2026-10-20
+
+- 修复本地书架空态在切换侧边栏后重复增加的问题。
+- 桌面视口采用固定顶栏、侧边栏与内部滚动内容区，保留窄窗阅读与续读支持。
+- 默认改用水墨主题，默认头像采用毛笔字，新增启动动画并尊重减少动态效果设置。
+- 去掉写作与便签工具条灰底，精简个人主页头像、名字和简介的编辑控件。
+- 便签新增层级标签筛选、每日回顾与随机漫游，支持 `#` 标签补全。
 
 ## 1.2.5 · 2026-10-19
 

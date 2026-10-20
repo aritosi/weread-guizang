@@ -1,14 +1,14 @@
 <div align="center">
   <img src="docs/assets/readme-hero.svg" alt="归藏 · 让阅读归于一处，让想法生长成文" width="100%">
   <p>
-    <a href="https://github.com/aritosi/weread-guizang/releases/tag/v1.2.5"><img alt="版本 1.2.5" src="https://img.shields.io/badge/归藏-1.2.5-2860A4?style=flat-square"></a>
+    <a href="https://github.com/aritosi/weread-guizang/releases/tag/v1.2.6"><img alt="版本 1.2.6" src="https://img.shields.io/badge/归藏-1.2.6-2860A4?style=flat-square"></a>
     <img alt="macOS 13.5 及以上" src="https://img.shields.io/badge/macOS-13.5%2B-58677A?style=flat-square">
     <img alt="Apple Silicon" src="https://img.shields.io/badge/芯片-Apple_Silicon-58677A?style=flat-square">
   </p>
   <p><strong>微信读书导出 · 本地阅读 · 知识整理 · 写作</strong></p>
   <p>把书籍、划线、网页、订阅和视频笔记收进自己的书库，从阅读走到表达。</p>
   <p>
-    <a href="https://github.com/aritosi/weread-guizang/releases/download/v1.2.5/归藏-1.2.5-arm64.dmg"><strong>下载 macOS 1.2.5</strong></a> ·
+    <a href="https://github.com/aritosi/weread-guizang/releases/download/v1.2.6/归藏-1.2.6-arm64.dmg"><strong>下载 macOS 1.2.6</strong></a> ·
     <a href="https://github.com/aritosi/weread-guizang/releases/latest">全部发布与校验文件</a> ·
     <a href="docs/macOS独立安装.md">安装文档</a> ·
     <a href="CHANGELOG.md">更新记录</a>
@@ -17,7 +17,7 @@
 
 归藏运行在本机，将微信读书中有权阅读的内容导出为 Markdown，也能导入 EPUB、PDF、TXT 和 Markdown。阅读、划线、剪藏、思维导图与写作共享同一个本地工作空间，服务仅监听 `127.0.0.1`。
 
-> **当前成品：1.2.5 · macOS 13.5+ · Apple Silicon。** 包内已包含 Python、Node、Chromium、FFmpeg/FFprobe，用户无需另装这些运行环境。当前采用 ad-hoc 签名，**未经 Apple 公证**；其他 Mac 上可能受到 Gatekeeper 拦截，安装前请了解这一发布状态。
+> **当前成品：1.2.6 · macOS 13.5+ · Apple Silicon。** 包内已包含 Python、Node、Chromium、FFmpeg/FFprobe，用户无需另装这些运行环境。当前采用 ad-hoc 签名，**未经 Apple 公证**；其他 Mac 上可能受到 Gatekeeper 拦截，安装前请了解这一发布状态。
 
 ## 看看归藏
 
@@ -49,23 +49,18 @@
 
 AI 与云转写需要自备接口、密钥及相应额度；本地导入、阅读和写作无需配置 AI。第三方内容获取受平台、网络和账号权限影响。
 
-## 1.2.5，把书架做成真正的一面书墙
+## 1.2.6，水墨界面与便签回顾
 
-本版集中调整主界面入口、设置结构与本地书架外观，详见 [更新记录](CHANGELOG.md)。
+- 修复切换侧边栏时，本地书架空态提示重复增加的问题。
+- 桌面内容区独立滚动，顶栏和侧边栏保持固定；写作与便签工具条去掉灰底。
+- 默认采用水墨主题，默认头像改为毛笔字，新增启动动画，精简个人主页编辑控件。
+- 便签新增层级标签、每日回顾与随机漫游，并支持输入 `#` 补全已有标签。
 
-- **本地书架改成古典书柜。** 书立在木质横板上，一排一屏；左右箭头、方向键或触控板横滑切换书架，不再靠整页上下滚动找书。
-- **设置更好找。** 设置入口移到右上角刷新按钮旁；设置页按账号与外观、数据与工具、模型与云端、系统分组。
-- **微信读书 Key 说清怎么拿。** 原「接口 Key」统一改名，账号页内给出登录、进入开放 API、复制 Key 三步说明。
-- **三套新主题。** 新增古典金色、水墨黑白与 Notion 风格，主题切换改为独立卡片弹层。
-- **下拉与页面回弹收口。** 下拉菜单统一应用内配色，页面不再轻易拉出浏览器白色底。
-
-本轮记录：**静态门禁 262 项通过**；本机构建完成 DMG 实际安装、包内运行时、原生资源审计与界面真机检查。
-
-上述 UI 检查使用真实浏览器与本地后端；微信数据与第三方账号业务仍需按实际账号另验。方法、环境和完整结果见 [验收记录](desktop/TEST_RESULTS.md)。
+源码检查与安装包验收分别记录在 [验收记录](desktop/TEST_RESULTS.md) 和 Release 附带的 `test-results.zip`。
 
 ## 安装与第一次使用
 
-1. 下载 [归藏-1.2.5-arm64.dmg](https://github.com/aritosi/weread-guizang/releases/download/v1.2.5/归藏-1.2.5-arm64.dmg)，在 [Release 页面](https://github.com/aritosi/weread-guizang/releases/tag/v1.2.5) 获取对应校验文件。
+1. 下载 [归藏-1.2.6-arm64.dmg](https://github.com/aritosi/weread-guizang/releases/download/v1.2.6/归藏-1.2.6-arm64.dmg)，在 [Release 页面](https://github.com/aritosi/weread-guizang/releases/tag/v1.2.6) 获取对应校验文件。
 2. 打开 DMG，将 **归藏.app** 拖入“应用程序”，弹出磁盘镜像后从“应用程序”启动。
 3. 导入一本本地书即可开始阅读；需要微信读书功能时，再在设置中连接账号并配置对应接口。
 
@@ -97,7 +92,7 @@ AI 与云转写需要自备接口、密钥及相应额度；本地导入、阅�
 
 ## 从源码运行与构建
 
-开发建议使用 **Python 3.11+**。源码可在不同系统上运行，需自行准备适用依赖；这不等于已经提供 1.2.5 Windows 或 Intel Mac 成品。
+开发建议使用 **Python 3.11+**。源码可在不同系统上运行，需自行准备适用依赖；这不等于已经提供 1.2.6 Windows 或 Intel Mac 成品。
 
 ```bash
 git clone https://github.com/aritosi/weread-guizang.git
@@ -116,7 +111,7 @@ python3 -m venv .venv
 bash desktop/build_macos.sh
 ```
 
-构建需 Apple Silicon Mac、Command Line Tools、Rust stable、Node/npm 与 Python 3.11+。产物位于 `dist/macos/`，详见 [构建说明](desktop/README.md)。历史 `1.0.9` 安装包与当前 `1.2.5` 独立包不是同一套运行方案；旧 Windows 包仅作历史存档。
+构建需 Apple Silicon Mac、Command Line Tools、Rust stable、Node/npm 与 Python 3.11+。产物位于 `dist/macos/`，详见 [构建说明](desktop/README.md)。历史 `1.0.9` 安装包与当前 `1.2.6` 独立包不是同一套运行方案；旧 Windows 包仅作历史存档。
 
 ### 接入 AI Agent（MCP）
 
@@ -142,14 +137,14 @@ bash desktop/build_macos.sh
 - 网页剪藏、第三方找书和视频下载依赖站点规则、账号权限与网络状态，平台变化可能导致失败。
 - RSS 当前手动刷新；视频转写质量由所选模型决定，AI 输出需自行核对。
 - WebDAV 与 Microsoft Graph 云同步尚未使用真实网盘账号完成端到端验收。
-- 1.2.5 桌面包面向 Apple Silicon；最低系统要求为 macOS 13.5，未在每个旧系统版本或其他 Mac 上逐一实测。Windows 成品尚未完成本轮真实设备验收。
+- 1.2.6 桌面包面向 Apple Silicon；最低系统要求为 macOS 13.5，未在每个旧系统版本或其他 Mac 上逐一实测。Windows 成品尚未完成本轮真实设备验收。
 
 ## 文档导航
 
 | 我想了解 | 入口 |
 | --- | --- |
 | 安装、数据迁移与发布状态 | [macOS 独立安装](docs/macOS独立安装.md) · [桌面构建说明](desktop/README.md) |
-| 版本改动与验收证据 | [更新记录](CHANGELOG.md) · [1.2.5 验收记录](desktop/TEST_RESULTS.md) |
+| 版本改动与验收证据 | [更新记录](CHANGELOG.md) · [1.2.6 验收记录](desktop/TEST_RESULTS.md) |
 | 源码部署与功能细节 | [部署说明](docs/部署说明.md) |
 | 代码结构与开发约定 | [架构与模块地图](docs/架构与模块地图.md) · [开发规范](docs/开发规范.md) |
 | Agent 工作流 | [归藏 Skill](skills/guizang/SKILL.md) · [Book Speedrun](skills/book-speedrun/SKILL.md) · [MCP 适配器](mcp/guizang-mcp.mjs) |

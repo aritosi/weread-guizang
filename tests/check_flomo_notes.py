@@ -423,6 +423,76 @@ chk("G10 手记的 plain 同样摘掉自己那个标签（外部读者与屏幕�
     all("#" + t not in m["plain"] for m in g_list for t in m["tags"]),
     [(m["tags"], m["plain"]) for m in g_list])
 
+# ── H：每日回顾 / 随机漫游的抽样（1.2.7）──────────────────────────
+# 「随机」有两件容易做错的事，都在这几条里钉死：
+#   ① 每次进这一屏都重抽 —— 那不叫回顾，用户也记不住看过哪几条。所以同一天同一批；
+#   ② 看过的还回来 —— 所以 seen 里那几条当天不再露脸；全都看过了才从头再来一轮。
+hand = fn.load(G)
+ids = [m["id"] for m in hand["memos"]]
+r1 = fn.shuffle_pick(hand, limit=2)
+r2 = fn.shuffle_pick(hand, limit=2)
+chk("H1 同一天抽两次是同一批（不是每次刷新都换）",
+    [m["id"] for m in r1["picked"]] == [m["id"] for m in r2["picked"]],
+    ([m["id"] for m in r1["picked"]], [m["id"] for m in r2["picked"]]))
+chk("H2 抽出来的条数与要的一致，且都真在账上",
+    len(r1["picked"]) == min(2, len(ids))
+    and all(m["id"] in ids for m in r1["picked"]), r1)
+chk("H3 抽出来的是 public 形状（带 plain，界面直接能铺）",
+    all("plain" in m and "tags" in m for m in r1["picked"]))
+# 这份手记账只有 2 条，所以 seen 只标 1 条 —— 标满 2 条等于「全都看过了」，
+# 那走的是 H5 那条「从头再来一轮」，验不出 seen 本身。
+seen = [r1["picked"][0]["id"]]
+r3 = fn.shuffle_pick(hand, limit=2, seen=seen)
+chk("H4 当天看过的那几条不再露脸（seen 生效）",
+    not (set(m["id"] for m in r3["picked"]) & set(seen)),
+    ([m["id"] for m in r3["picked"]], seen))
+r4 = fn.shuffle_pick(hand, limit=2, seen=ids)
+chk("H5 全都看过了：从头再来一轮，不是「没有东西可换」",
+    len(r4["picked"]) == min(2, len(ids)), r4)
+chk("H6 空账给空的一批，不抛",
+    fn.shuffle_pick({"memos": []}, limit=4) ==
+    {"picked": [], "total": 0, "day": fn._day_key(), "left": 0})
+chk("H7 limit 再离谱也收在 1..50（脏查询串不许把整本账端出来）",
+    len(fn.shuffle_pick(hand, limit=9999)["picked"]) == min(50, len(ids))
+    and len(fn.shuffle_pick(hand, limit=-3)["picked"]) >= 1)
+chk("H8 带标签抽样只抽那一支（与 tag_match 同一把尺）",
+    all(any(t == "灵感" or t.startswith("灵感/") for t in m["tags"])
+        for m in fn.shuffle_pick(hand, limit=9, tag="灵感")["picked"]))
+
+# ── I：随机漫游（1.2.7）──────────────────────────────────────────
+# 它与「每日回顾」刻意不同：回顾是当天固定一批；漫游是「再翻一条」，每点一次换一条，
+# 且最近 N 条不撞。另有一条容易忽略的取舍：偏向旧的那一半 —— 新写的每天都在眼前。
+r_only = fn.roam_pick(hand)
+chk("I1 漫游一次只给一条，且是 public 形状",
+    r_only.get("memo") and "plain" in r_only["memo"] and r_only["total"] == len(ids), r_only)
+# 把刚翻过的带上：不许立刻撞回来（只有 2 条时迟早会重来，那是对的）。
+seen_roam = [r_only["memo"]["id"]]
+r_next = fn.roam_pick(hand, seen=seen_roam)
+chk("I2 seen 里刚翻过的那条，不会立刻又给一次",
+    r_next.get("memo") and r_next["memo"]["id"] != seen_roam[0], (r_next, seen_roam))
+chk("I3 空账给空的一条，不抛", fn.roam_pick({"memos": []}) ==
+    {"memo": None, "total": 0, "left": 0})
+chk("I4 带标签漫游只翻那一支",
+    (lambda m: (m is None) or any(t == "灵感" or t.startswith("灵感/") for t in m["tags"]))(
+        fn.roam_pick(hand, tag="灵感").get("memo")))
+# 债多的时候偏向旧的一半：20 条里新写的那 10 条不该占满随机结果。
+old_hand = {"memos": [{"id": "n%d" % i, "md": "m", "tags": [], "ts": i, "words": 1}
+                      for i in range(20)]}
+# 空 seen、反复抽：验的是「偏向旧的一半」这个取舍本身（不是随机数）。
+# 20 条里 ts 小的那 10 条算旧。全空的时候每次都该从旧的一半里出，
+# 所以「翻到最近一半」的次数必须是 0；一旦有人把 older 那一段删掉，这条立刻红。
+young = 0
+for i in range(60):
+    got = fn.roam_pick(old_hand, seed="fresh%d" % i)
+    if got["memo"] and int(got["memo"]["id"][1:]) >= 10:
+        young += 1
+chk("I5 偏向旧的一半：空窗口时不会翻到最近写的那一半", young == 0, young)
+# 反向对照：只剩新的一半时（旧的都在 seen 里）它仍得给得出东西，不许空转。
+all_old = ["n%d" % i for i in range(10)]
+got2 = fn.roam_pick(old_hand, seen=all_old, seed="only-young")
+chk("I6 旧的一半都看过了：退到新的那半边继续翻，不是卡死",
+    got2["memo"] and int(got2["memo"]["id"][1:]) >= 10, got2)
+
 shutil.rmtree(ROOT, ignore_errors=True)
 print()
 print("flomo 便签后端：通过 %d 项，失败 %d 项" % (PASSED, len(FAIL)))

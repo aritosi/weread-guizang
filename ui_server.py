@@ -64,7 +64,7 @@ REPO = os.path.dirname(os.path.abspath(__file__))
 # 版本号只写在这一处：shell/build_macos.sh 会把它读出来盖进 Info.plist，
 # 打的 dmg 也就跟着叫同一个名字，不会再出现「界面一个数、访达另一个数」。
 # 界面「关于」那一类要显示它 —— 用户报问题时先问「你装的哪一版」，界面上能直接看到。
-VERSION = "1.2.5"
+VERSION = "1.2.6"
 
 # 这份 ui_server.py 的内容指纹。版本号比不出来的那部分靠它：源码直接跑的人
 # 改完代码未必动版本号，于是旧进程和新代码写着同一个数，谁也不认谁是旧的 ——
@@ -5091,6 +5091,24 @@ def flomo_view(q):
             data = flomo_notes.load(FLOMO_DIR)
             return {"ok": True, "tags": flomo_notes.tag_counts(data),
                     "recent": flomo_notes.recent_tags(data)}
+        if mode == "daily":
+            # 每日回顾 / 随机漫游：同一个自然日内同一批，看过的几条带回来就不再露脸。
+            # seen 由前端存在本机（这本来就是「我看过哪些」的账号外的私人状态）。
+            data = flomo_notes.load(FLOMO_DIR)
+            picked = flomo_notes.shuffle_pick(
+                data, limit=_qint(one("limit", "8"), 8, lo=1, hi=50),
+                seen=[x for x in (q.get("seen", [""])[0] or "").split(",") if x.strip()],
+                tag=one("tag"))
+            return dict({"ok": True, "stats": flomo_stats()}, **picked)
+        if mode == "roam":
+            # 随机漫游：一次一条，「再翻一条」换下一条；seen 是最近的滚动窗口，
+            # 窗口外不再限制，所以几千条的老账也能一直被翻出来。
+            data = flomo_notes.load(FLOMO_DIR)
+            got = flomo_notes.roam_pick(
+                data,
+                seen=[x for x in (q.get("seen", [""])[0] or "").split(",") if x.strip()],
+                tag=one("tag"))
+            return dict({"ok": True, "stats": flomo_stats()}, **got)
         if mode == "portrait":
             # 给 Agent 的那一份「用户记忆画像」：只有数字与标签，没有一条原文。
             # 顺手落盘到 cache/flomo/portrait/ —— 用户要的「首次操作时生成、存在存储目录
