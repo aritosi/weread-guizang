@@ -8,7 +8,7 @@
   <p><strong>微信读书导出 · 本地阅读 · 知识整理 · 写作</strong></p>
   <p>把书籍、划线、网页、订阅和视频笔记收进自己的书库，从阅读走到表达。</p>
   <p>
-    <a href="https://github.com/aritosi/weread-guizang/releases/download/v1.2.6/归藏-1.2.6-arm64.dmg"><strong>下载 macOS 1.2.6</strong></a> ·
+    <a href="https://github.com/aritosi/weread-guizang/releases/download/v1.2.6/-1.2.6-arm64.dmg"><strong>下载 macOS 1.2.6</strong></a> ·
     <a href="https://github.com/aritosi/weread-guizang/releases/latest">全部发布与校验文件</a> ·
     <a href="docs/macOS独立安装.md">安装文档</a> ·
     <a href="CHANGELOG.md">更新记录</a>
@@ -60,7 +60,7 @@ AI 与云转写需要自备接口、密钥及相应额度；本地导入、阅�
 
 ## 安装与第一次使用
 
-1. 下载 [归藏-1.2.6-arm64.dmg](https://github.com/aritosi/weread-guizang/releases/download/v1.2.6/归藏-1.2.6-arm64.dmg)，在 [Release 页面](https://github.com/aritosi/weread-guizang/releases/tag/v1.2.6) 获取对应校验文件。
+1. 下载 [归藏-1.2.6-arm64.dmg](https://github.com/aritosi/weread-guizang/releases/download/v1.2.6/-1.2.6-arm64.dmg)，在 [Release 页面](https://github.com/aritosi/weread-guizang/releases/tag/v1.2.6) 获取对应校验文件。
 2. 打开 DMG，将 **归藏.app** 拖入“应用程序”，弹出磁盘镜像后从“应用程序”启动。
 3. 导入一本本地书即可开始阅读；需要微信读书功能时，再在设置中连接账号并配置对应接口。
 
