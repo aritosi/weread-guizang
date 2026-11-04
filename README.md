@@ -17,7 +17,7 @@
 
 归藏运行在本机，将微信读书中有权阅读的内容导出为 Markdown，也能导入 EPUB、PDF、TXT 和 Markdown。阅读、划线、剪藏、思维导图与写作共享同一个本地工作空间，服务仅监听 `127.0.0.1`。
 
-> **桌面版：macOS 13.5+ · Apple Silicon。** 下载页提供已发布的安装包；1.2.7 需通过构建验收后发布。 包内已包含 Python、Node、Chromium、FFmpeg/FFprobe，用户无需另装这些运行环境。当前采用 ad-hoc 签名，**未经 Apple 公证**；其他 Mac 上可能受到 Gatekeeper 拦截，安装前请了解这一发布状态。
+> **桌面版：macOS 13.5+ · Apple Silicon。** 下载页提供已发布的安装包与校验文件。包内已包含 Python、Node、Chromium、FFmpeg/FFprobe，用户无需另装这些运行环境。当前采用 ad-hoc 签名，**未经 Apple 公证**；其他 Mac 上可能受到 Gatekeeper 拦截，安装前请了解这一发布状态。
 
 ## 看看归藏
 
