@@ -1,14 +1,14 @@
 <div align="center">
   <img src="docs/assets/readme-hero.svg" alt="归藏 · 让阅读归于一处，让想法生长成文" width="100%">
   <p>
-    <a href="https://github.com/aritosi/weread-guizang/releases/tag/v1.2.6"><img alt="版本 1.2.6" src="https://img.shields.io/badge/归藏-1.2.6-2860A4?style=flat-square"></a>
+    <a href="https://github.com/aritosi/weread-guizang/releases/latest"><img alt="版本 1.2.7" src="https://img.shields.io/badge/归藏-1.2.7-2860A4?style=flat-square"></a>
     <img alt="macOS 13.5 及以上" src="https://img.shields.io/badge/macOS-13.5%2B-58677A?style=flat-square">
     <img alt="Apple Silicon" src="https://img.shields.io/badge/芯片-Apple_Silicon-58677A?style=flat-square">
   </p>
   <p><strong>微信读书导出 · 本地阅读 · 知识整理 · 写作</strong></p>
   <p>把书籍、划线、网页、订阅和视频笔记收进自己的书库，从阅读走到表达。</p>
   <p>
-    <a href="https://github.com/aritosi/weread-guizang/releases/download/v1.2.6/-1.2.6-arm64.dmg"><strong>下载 macOS 1.2.6</strong></a> ·
+    <a href="https://github.com/aritosi/weread-guizang/releases/latest"><strong>下载 macOS 最新版</strong></a> ·
     <a href="https://github.com/aritosi/weread-guizang/releases/latest">全部发布与校验文件</a> ·
     <a href="docs/macOS独立安装.md">安装文档</a> ·
     <a href="CHANGELOG.md">更新记录</a>
@@ -17,7 +17,7 @@
 
 归藏运行在本机，将微信读书中有权阅读的内容导出为 Markdown，也能导入 EPUB、PDF、TXT 和 Markdown。阅读、划线、剪藏、思维导图与写作共享同一个本地工作空间，服务仅监听 `127.0.0.1`。
 
-> **当前成品：1.2.6 · macOS 13.5+ · Apple Silicon。** 包内已包含 Python、Node、Chromium、FFmpeg/FFprobe，用户无需另装这些运行环境。当前采用 ad-hoc 签名，**未经 Apple 公证**；其他 Mac 上可能受到 Gatekeeper 拦截，安装前请了解这一发布状态。
+> **桌面版：macOS 13.5+ · Apple Silicon。** 下载页提供已发布的安装包；1.2.7 需通过构建验收后发布。 包内已包含 Python、Node、Chromium、FFmpeg/FFprobe，用户无需另装这些运行环境。当前采用 ad-hoc 签名，**未经 Apple 公证**；其他 Mac 上可能受到 Gatekeeper 拦截，安装前请了解这一发布状态。
 
 ## 看看归藏
 
@@ -39,7 +39,7 @@
 | 模块 | 可以做什么 |
 | --- | --- |
 | **微信读书** | 微信读书会员可整本导出 Markdown，图文按阅读顺序排列、断点续传；导出 EPUB/PDF、划线与想法、Anki 卡包；书城搜索与加入书架 |
-| **本地书库** | 导入 Markdown、TXT、EPUB、PDF；文件夹、标签与排序；瀑布流与叠卡；阅读位置、批注和阅读计划 |
+| **本地书库** | 导入 Markdown、TXT、EPUB、PDF；文件夹、标签与搜索；连续网格；阅读位置、批注和阅读计划 |
 | **网页剪藏** | 解析微信公众号、知乎、小红书和 X 的内容，保存正文、入库阅读并导出 |
 | **订阅阅读** | RSS、Atom、JSON Feed；三栏阅读、标签和搜索；OPML 导入导出、单篇入库 |
 | **视频笔记** | 哔哩哔哩、YouTube 音频转写；编辑分段、重建章节、导出 SRT；结合 AI 整理笔记和导图 |
@@ -49,6 +49,15 @@
 
 AI 与云转写需要自备接口、密钥及相应额度；本地导入、阅读和写作无需配置 AI。第三方内容获取受平台、网络和账号权限影响。
 
+## 1.2.7，阅读工作空间升级
+
+- 重新整理顶栏、书架和工作区，保留可配置的侧栏入口；本地书架改为连续网格，支持搜索、分类、标签与导入。
+- 新增纸白、夜读、苔青、暖砂四套主题，并统一视频、便签、写作和阅读界面的布局。
+- 调整切页和操作动效，修正下拉框箭头与文字空间；尊重系统减少动态效果设置。
+- 不再提供的旧主题会回退到纸白；原有数据目录与功能继续保留。
+
+截图展示的是此前版本，实际界面以当前应用为准。
+
 ## 1.2.6，水墨界面与便签回顾
 
 - 修复切换侧边栏时，本地书架空态提示重复增加的问题。
@@ -56,11 +65,11 @@ AI 与云转写需要自备接口、密钥及相应额度；本地导入、阅�
 - 默认采用水墨主题，默认头像改为毛笔字，新增启动动画，精简个人主页编辑控件。
 - 便签新增层级标签、每日回顾与随机漫游，并支持输入 `#` 补全已有标签。
 
-源码检查与安装包验收分别记录在 [验收记录](desktop/TEST_RESULTS.md) 和 Release 附带的 `test-results.zip`。
+历史验收记录见 [1.2.6 验收记录](desktop/TEST_RESULTS.md)，新版本构建证据以 Release 附带的 `test-results.zip` 为准。
 
 ## 安装与第一次使用
 
-1. 下载 [归藏-1.2.6-arm64.dmg](https://github.com/aritosi/weread-guizang/releases/download/v1.2.6/-1.2.6-arm64.dmg)，在 [Release 页面](https://github.com/aritosi/weread-guizang/releases/tag/v1.2.6) 获取对应校验文件。
+1. 在 [Release 页面](https://github.com/aritosi/weread-guizang/releases/latest) 下载 macOS Apple Silicon 安装包，并在同一页面获取对应校验文件。
 2. 打开 DMG，将 **归藏.app** 拖入“应用程序”，弹出磁盘镜像后从“应用程序”启动。
 3. 导入一本本地书即可开始阅读；需要微信读书功能时，再在设置中连接账号并配置对应接口。
 
@@ -92,7 +101,7 @@ AI 与云转写需要自备接口、密钥及相应额度；本地导入、阅�
 
 ## 从源码运行与构建
 
-开发建议使用 **Python 3.11+**。源码可在不同系统上运行，需自行准备适用依赖；这不等于已经提供 1.2.6 Windows 或 Intel Mac 成品。
+开发建议使用 **Python 3.11+**。源码可在不同系统上运行，需自行准备适用依赖；这不等于已经提供 1.2.7 Windows 或 Intel Mac 成品。
 
 ```bash
 git clone https://github.com/aritosi/weread-guizang.git
@@ -111,7 +120,7 @@ python3 -m venv .venv
 bash desktop/build_macos.sh
 ```
 
-构建需 Apple Silicon Mac、Command Line Tools、Rust stable、Node/npm 与 Python 3.11+。产物位于 `dist/macos/`，详见 [构建说明](desktop/README.md)。历史 `1.0.9` 安装包与当前 `1.2.6` 独立包不是同一套运行方案；旧 Windows 包仅作历史存档。
+构建需 Apple Silicon Mac、Command Line Tools、Rust stable、Node/npm 与 Python 3.11+。产物位于 `dist/macos/`，详见 [构建说明](desktop/README.md)。历史 `1.0.9` 安装包与新版独立包不是同一套运行方案；旧 Windows 包仅作历史存档。
 
 ### 接入 AI Agent（MCP）
 
@@ -137,7 +146,7 @@ bash desktop/build_macos.sh
 - 网页剪藏、第三方找书和视频下载依赖站点规则、账号权限与网络状态，平台变化可能导致失败。
 - RSS 当前手动刷新；视频转写质量由所选模型决定，AI 输出需自行核对。
 - WebDAV 与 Microsoft Graph 云同步尚未使用真实网盘账号完成端到端验收。
-- 1.2.6 桌面包面向 Apple Silicon；最低系统要求为 macOS 13.5，未在每个旧系统版本或其他 Mac 上逐一实测。Windows 成品尚未完成本轮真实设备验收。
+- 1.2.7 桌面包面向 Apple Silicon；最低系统要求为 macOS 13.5，未在每个旧系统版本或其他 Mac 上逐一实测。Windows 成品尚未完成本轮真实设备验收。
 
 ## 文档导航
 

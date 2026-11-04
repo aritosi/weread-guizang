@@ -1,6 +1,12 @@
 # 更新记录
 
-本页记录面向使用者的主要变化。当前桌面成品为 [1.2.6 · macOS Apple Silicon](https://github.com/aritosi/weread-guizang/releases/tag/v1.2.6)，安装与数据说明见 [README](README.md)。
+本页记录面向使用者的主要变化。桌面成品见 [最新发布 · macOS Apple Silicon](https://github.com/aritosi/weread-guizang/releases/latest)，安装与数据说明见 [README](README.md)。
+
+## 1.2.7 · 2026-11-04
+
+- 重整书架与视频、便签、写作、阅读工作区；保留侧栏入口与既有操作。
+- 本地书架改为连续网格，保留导入、搜索、分类、标签、阅读及文件操作。
+- 新增纸白、夜读、苔青、暖砂主题，调整动效和下拉控件。
 
 ## 1.2.6 · 2026-10-20
 

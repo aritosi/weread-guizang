@@ -126,9 +126,9 @@ with sync_playwright() as pw:
     page.goto(BASE + "/", wait_until="networkidle")
     page.wait_for_timeout(1500)
 
-    # 起手是系统浅色（emulate_media 定了）。第一遍点「深」= 浅转深；落定后页面已是深色，
+    # 起手是纸白主题。第一遍点「深」= 浅转深；落定后页面已是深色，
     # 第二遍点「浅」= 深转浅。两个方向各自都是「从当前色切到另一色」，不必先摆姿态。
-    for which, label in (("dark", "浅 → 深"), ("light", "深 → 浅")):
+    for which, label in (("dark", "浅 → 深"), ("ink", "深 → 浅")):
         r = page.evaluate(SWITCH_JS, which)
         bad, worst = mid_count(r["A"], r["M1"], r["M2"], r["B"])
         moved = changed_count(r["A"], r["B"])

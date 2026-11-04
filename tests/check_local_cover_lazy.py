@@ -92,11 +92,11 @@ chk("localCard：到了再淡入（onload → .in）仍在",
 lgrid = fn_body("renderLocalGrid")
 cgrid = fn_body("renderClipShelf")
 chk("renderLocalGrid：网格挂进文档之后立刻 paintCovers(grid)（首屏不能等第一次滚动）",
-    _lit_after_last(lgrid, "stage.replaceChildren(view, nav)", "paintCovers(pageGrids[localPage])"), lgrid[-400:])
+    _lit_before(lgrid, "wrap.replaceChildren(grid)", "paintCovers(grid)"), lgrid[-400:])
 chk("renderClipShelf：同一处同样补一次 paintCovers(grid)",
     _lit_before(cgrid, "wrap.replaceChildren(grid)", "paintCovers(grid)"), cgrid[-400:])
 chk("renderLocalGrid / renderClipShelf 都在卡片造完之后才点亮（不是造之前）",
-    lgrid.find("localCard(") < lgrid.find("paintCovers(pageGrids[localPage])")
+    lgrid.find("localCard(") < lgrid.find("paintCovers(grid)")
     and cgrid.find("localCard(") < cgrid.find("paintCovers(grid)"), "点亮排在了建卡前面")
 
 # ── ③ 前提：调 paintCovers 时这一格已经显出来 ─────────────────────

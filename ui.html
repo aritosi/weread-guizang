@@ -13,7 +13,7 @@
   // 只有本机从没选过主题时才落到 ink，选过的一律尊重本机那一份。
   try {
     var _t = localStorage.getItem('guizang_theme') || 'ink';
-    if (_t) document.documentElement.dataset.theme = _t;
+    document.documentElement.dataset.theme = ['ink','dark','moss','sand'].includes(_t) ? _t : 'ink';
   } catch (e) {}
 </script>
 <title>归藏</title>
@@ -58,11 +58,11 @@
        内置浏览器）把 main 放宽到 1440，书架/统计这些留在 1080 —— 侧边栏连同整页左右边
        随页面来回横跳，正是用户说的「突然出现一个左右变动极大」。宽窄只留这一处，
        切页就只剩淡入，不再有横移。 */
-    --main-w:min(1440px, 100%);
+    --main-w:100%;
   }
   /* 主题：默认跟随系统；用户在界面上手动选了就以 html[data-theme] 为准 */
   @media (prefers-color-scheme:dark){
-    :root:not([data-theme="light"]){
+    :root:not([data-theme]){
       --ink:#eceef3;
       --ink-2:#a8b0c0;
       --ink-3:#7c8598;
@@ -262,7 +262,7 @@
     #view{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;
       scrollbar-gutter:stable}
   }
-  @media (prefers-color-scheme:dark){ :root:not([data-theme="light"]) body{background:#12151b} }
+  @media (prefers-color-scheme:dark){ :root:not([data-theme]) body{background:#12151b} }
   html[data-theme="dark"] body{background:#12151b}
 
   /* 按钮上的字一律不折行。这些钮都是固定高度的单行件，一旦被 flex 挤窄，
@@ -293,7 +293,7 @@
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
   }
   @media (prefers-color-scheme:dark){
-    :root:not([data-theme="light"]) .ambient u{mix-blend-mode:screen; opacity:.022}
+    :root:not([data-theme]) .ambient u{mix-blend-mode:screen; opacity:.022}
   }
   html[data-theme="dark"] .ambient u{mix-blend-mode:screen; opacity:.022}
 
@@ -826,7 +826,7 @@
     padding:3px 11px; white-space:nowrap; flex:none; transition:background .14s ease}
   .whisper.act > .wa:hover{background:rgba(255,255,255,.34)}
   @media (prefers-color-scheme:dark){
-    :root:not([data-theme="light"]) .whisper{background:rgba(233,237,244,.94); color:#12151b}
+    :root:not([data-theme]) .whisper{background:rgba(233,237,244,.94); color:#12151b}
   }
   html[data-theme="dark"] .whisper{background:rgba(233,237,244,.94); color:#12151b}
 
@@ -1110,7 +1110,7 @@
   }
   .wcard:hover{transform:translateY(-3px); box-shadow:var(--shadow); border-color:var(--line-2)}
   .wcard .cv{position:relative; aspect-ratio:2/3; overflow:hidden; background:linear-gradient(150deg,#e7eefb,#d9e5f7)}
-  @media (prefers-color-scheme:dark){ :root:not([data-theme="light"]) .wcard .cv{background:linear-gradient(150deg,#232a38,#1c222e)} }
+  @media (prefers-color-scheme:dark){ :root:not([data-theme]) .wcard .cv{background:linear-gradient(150deg,#232a38,#1c222e)} }
   html[data-theme="dark"] .wcard .cv{background:linear-gradient(150deg,#232a38,#1c222e)}
   .wcard .cv img{width:100%; height:100%; object-fit:cover; display:block}
   .wcard .cv .ph{width:100%; height:100%; display:grid; place-items:center; font-size:24px; font-weight:600; color:var(--ink); opacity:.2}
@@ -2228,7 +2228,7 @@
   .nbcard:hover{transform:translateY(-3px); box-shadow:var(--shadow); border-color:var(--line-2); background:var(--glass)}
   .nbcard .cv{position:relative; aspect-ratio:2/3; overflow:hidden; display:grid; place-items:center;
     background:linear-gradient(150deg,#e7eefb,#d9e5f7)}
-  @media (prefers-color-scheme:dark){ :root:not([data-theme="light"]) .nbcard .cv{background:linear-gradient(150deg,#232a38,#1c222e)} }
+  @media (prefers-color-scheme:dark){ :root:not([data-theme]) .nbcard .cv{background:linear-gradient(150deg,#232a38,#1c222e)} }
   html[data-theme="dark"] .nbcard .cv{background:linear-gradient(150deg,#232a38,#1c222e)}
   .nbcard .cv img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block}
   .nbcard .cv .ph{font-size:30px; font-weight:600; opacity:.2; user-select:none}
@@ -2244,7 +2244,7 @@
   /* 来源徽章：微信读书那几支笔是官方的、取书的是本机划的，颜色分开一眼能认。 */
   .nbcard .cn span.wx{color:var(--accent); border-color:var(--accent-soft); background:var(--accent-soft)}
   .nbcard .cn span.lc{color:#2c8f63; border-color:rgba(44,143,99,.24); background:rgba(44,143,99,.11)}
-  @media (prefers-color-scheme:dark){ :root:not([data-theme="light"]) .nbcard .cn span.lc{color:#7fd6a8; background:rgba(127,214,168,.13)} }
+  @media (prefers-color-scheme:dark){ :root:not([data-theme]) .nbcard .cn span.lc{color:#7fd6a8; background:rgba(127,214,168,.13)} }
   html[data-theme="dark"] .nbcard .cn span.lc{color:#7fd6a8; background:rgba(127,214,168,.13)}
 
   @keyframes arrive{from{opacity:0; transform:translateY(10px)}to{opacity:1; transform:none}}
@@ -3371,9 +3371,9 @@
   .wcard .cv .spine i{font-style:normal; font-size:26px; font-weight:600;
     color:hsl(var(--h) 38% 34%); opacity:.5}
   @media (prefers-color-scheme:dark){
-    :root:not([data-theme="light"]) .wcard .cv .spine{
+    :root:not([data-theme]) .wcard .cv .spine{
       background:linear-gradient(156deg, hsl(var(--h) 26% 24%), hsl(calc(var(--h) + 26) 24% 16%))}
-    :root:not([data-theme="light"]) .wcard .cv .spine i{color:hsl(var(--h) 44% 82%)}
+    :root:not([data-theme]) .wcard .cv .spine i{color:hsl(var(--h) 44% 82%)}
   }
   html[data-theme="dark"] .wcard .cv .spine{
     background:linear-gradient(156deg, hsl(var(--h) 26% 24%), hsl(calc(var(--h) + 26) 24% 16%))}
@@ -3426,7 +3426,7 @@
 
   body{background:#ecedf0}
   @media (prefers-color-scheme:dark){
-    :root:not([data-theme="light"]) body{background:#131519}
+    :root:not([data-theme]) body{background:#131519}
   }
   html[data-theme="dark"] body{background:#131519}
 
@@ -3569,7 +3569,7 @@
     width:132px; flex:none; aspect-ratio:2/3; border-radius:14px; overflow:hidden;
     background:linear-gradient(150deg,#e7eefb,#d9e5f7); box-shadow:var(--shadow), var(--sheen);
   }
-  @media (prefers-color-scheme:dark){ :root:not([data-theme="light"]) .dtop .cv{background:linear-gradient(150deg,#232a38,#1c222e)} }
+  @media (prefers-color-scheme:dark){ :root:not([data-theme]) .dtop .cv{background:linear-gradient(150deg,#232a38,#1c222e)} }
   html[data-theme="dark"] .dtop .cv{background:linear-gradient(150deg,#232a38,#1c222e)}
   .dtop .cv img{width:100%; height:100%; object-fit:cover; display:block}
   /* 能读的书：封面本身就是入口，抬一下就进去了 */
@@ -3680,7 +3680,7 @@
   .qcard .m{font-size:11px; color:var(--ink-3); margin-top:9px; display:flex; gap:8px; flex-wrap:wrap}
   .qcard .m .k{color:var(--ink-2)}
   .qcard .m .k.lc{color:#2c8f63}      /* 取书那一路的划线/笔记：和微信来源分色 */
-  @media (prefers-color-scheme:dark){ :root:not([data-theme="light"]) .qcard .m .k.lc{color:#7fd6a8} }
+  @media (prefers-color-scheme:dark){ :root:not([data-theme]) .qcard .m .k.lc{color:#7fd6a8} }
   html[data-theme="dark"] .qcard .m .k.lc{color:#7fd6a8}
 
   /* ═══ 流畅度：少算一点、少画一点 ═══
@@ -3713,7 +3713,7 @@
   ::selection{background:rgba(47,127,240,.24); color:var(--ink)}
   html[data-theme="dark"] ::selection{background:rgba(95,164,247,.32)}
   @media (prefers-color-scheme:dark){
-    :root:not([data-theme="light"]) ::selection{background:rgba(95,164,247,.32)}
+    :root:not([data-theme]) ::selection{background:rgba(95,164,247,.32)}
   }
   @keyframes drift{
     0%{transform:translate3d(0,0,0)}
@@ -4235,6 +4235,173 @@
     justify-content:center; transition:background .14s ease, color .14s ease, transform .12s ease}
   .edpop .dots button.undo:hover{background:var(--surface-2); color:var(--ink)}
   .edpop .dots button.undo:active{transform:scale(.96)}
+
+  /* 应用外壳：结构与配色分离，所有主题共享同一套布局。 */
+  html { --canvas:#f0efef; --chrome:#f1f0f0; --rail-card:#f7f6f6; --selected:#dfdede; --edge:#dedddd; }
+  html[data-theme="ink"] { color-scheme:light; --accent:#454545; --accent-soft:rgba(40,40,40,.09); }
+  html[data-theme="dark"] { --canvas:#171a1c; --chrome:#202326; --rail-card:#25292b; --selected:#383e40; --edge:#383d3f; }
+  html[data-theme="moss"] { color-scheme:light; --canvas:#e8eee8; --chrome:#dfe9e0; --rail-card:#f4f7f1; --selected:#cbdccf; --edge:#c6d4c8; --ink:#24362b; --ink-2:#52685a; --ink-3:#788b7c; --glass-rgb:245,249,244; --solid:#f4f8f2; --paper:#fbfdf9; --paper-2:#e8f0e7; --paper-inset:rgba(41,77,52,.08); --surface-2:rgba(41,77,52,.07); --line:rgba(41,77,52,.13); --line-2:rgba(41,77,52,.23); --accent:#426b50; --accent-soft:rgba(66,107,80,.14); }
+  html[data-theme="sand"] { color-scheme:light; --canvas:#efe9df; --chrome:#eae0d2; --rail-card:#f9f4eb; --selected:#e0d2bd; --edge:#d9ccba; --ink:#382f29; --ink-2:#6f5d50; --ink-3:#978574; --glass-rgb:250,245,237; --solid:#faf5ed; --paper:#fffaf2; --paper-2:#f1e8da; --paper-inset:rgba(104,70,42,.08); --surface-2:rgba(104,70,42,.07); --line:rgba(104,70,42,.14); --line-2:rgba(104,70,42,.24); --accent:#9a6345; --accent-soft:rgba(154,99,69,.14); }
+  body { background:var(--canvas)!important; font-family:"Songti SC","STSong",serif; }
+  .ambient { opacity:.08 }
+  header.bar { height:62px; min-height:62px; padding:0 20px; gap:10px; background:var(--chrome); box-shadow:none; }
+  header.bar .mark, header.bar .name { display:none }
+  header.bar #mebtn { order:10; flex:none; margin-left:4px }
+  header.bar .ainavbtn { position:static; transform:none; border:0; background:transparent; border-radius:8px; flex:none }
+  header.bar .ainavbtn:active { transform:scale(.97) }
+  header.bar .spacer { min-width:0 }
+  .room-nav { display:flex; align-items:center; gap:8px; height:100%; min-width:0; flex-shrink:1 }
+  .room-nav button { height:42px; padding:0 13px; border:0; background:transparent; color:var(--ink); font:inherit; font-size:16px; cursor:pointer; position:relative }
+  .room-nav button.on { background:var(--selected); border-radius:8px }
+  .room-nav button.on:after { content:""; position:absolute; bottom:-3px; left:14px; right:14px; height:2px; background:var(--ink) }
+  .room-search { flex:0 1 200px; min-width:95px; border:0; background:var(--selected); color:var(--ink-2); border-radius:20px; padding:9px 16px; text-align:left; font:inherit; cursor:pointer }
+  main { padding:0 }
+  body.appflex main { padding:0 }
+  .shell { grid-template-columns:236px minmax(0,1fr); gap:0; }
+  .side, .content { min-width:0; border-radius:0; box-shadow:none; background:transparent; backdrop-filter:none; border:0 }
+  body.appflex .side { height:100%; max-height:100%; padding:20px 14px; border-right:1px solid var(--edge) }
+  .side nav button { height:42px; font-size:15px; border-radius:8px }
+  .side nav button.on { background:var(--selected); color:var(--ink); box-shadow:none }
+  .side nav .navgrp { font-size:13px; padding-top:18px }
+  .sidehead { margin-bottom:8px }
+  #view { padding:28px 32px; }
+  .chead { padding:16px 0 22px; border:0 }
+  .chead .t { font-size:27px; font-weight:500 }
+  .stools { padding:10px 0 18px; border:0 }
+  .sgrid { padding:10px 0; gap:20px 16px; grid-template-columns:repeat(auto-fill,minmax(145px,1fr)) }
+  .wcard { border:1px solid var(--line); border-radius:8px; background:var(--rail-card); box-shadow:0 2px 4px #0000000a }
+  .wcard .cv { border-radius:7px 7px 0 0; aspect-ratio:.71 }
+  .wcard .mt .n { font-size:15px; font-weight:500 }
+  .wcard .mt .a { font-size:12px }
+  .room-rail { display:none }
+  .room-card { background:var(--rail-card); border:1px solid var(--line); border-radius:14px; padding:18px; margin-bottom:14px; box-shadow:0 2px 8px #00000008 }
+  .room-date { font-size:27px; letter-spacing:.04em }
+  .room-week { font-size:14px; margin-left:12px; color:var(--ink-3) }
+  .room-quote { font-size:14px; color:var(--ink-2); margin:17px 0 0; line-height:1.7 }
+  .room-card h2 { font-size:17px; font-weight:500; margin:0 0 12px }
+  .room-link { width:100%; text-align:left; padding:10px 0; background:none; border:0; border-bottom:1px solid var(--line); font:inherit; color:var(--ink-2); cursor:pointer }
+  .room-link:last-child { border:0 }
+  @media(min-width:1200px) {
+    body.shelf-room .shell { grid-template-columns:236px minmax(0,1fr) 300px }
+    body.side-edge.shelf-room .shell { grid-template-columns:minmax(0,1fr) 300px }
+    body.shelf-room .room-rail { display:block; padding:24px 14px; border-left:1px solid var(--edge); overflow:auto }
+  }
+  @media(min-width:841px) { body.side-edge:not(.shelf-room) .shell { grid-template-columns:minmax(0,1fr) } body.side-edge .side { background:var(--chrome); height:100%; padding:70px 14px 18px } }
+  @media(max-width:1100px) { .room-nav { gap:0 } .room-nav button { padding:0 9px } .room-search { flex-basis:120px } }
+  @media(max-width:840px) { .room-nav,.room-search { display:none } .shell, body.side-edge .shell { grid-template-columns:minmax(0,1fr) } #view { padding:18px } body.appflex .side { height:auto; border-right:0; border-bottom:1px solid var(--edge) } }
+  @media(max-width:500px) { header.bar { padding:0 10px; gap:5px } header.bar .live { display:none } }
+
+  /* 模块共同的纸面与轻玻璃控件。动画只提供方向感，不阻挡操作。 */
+  .themelist { grid-template-columns:repeat(2,minmax(0,1fr)) }
+  header.bar { background:color-mix(in srgb, var(--chrome) 88%, transparent); backdrop-filter:blur(24px) saturate(140%); -webkit-backdrop-filter:blur(24px) saturate(140%) }
+  #view { scroll-behavior:auto }
+  .vpane { min-width:0 }
+  .chead { gap:12px; flex-wrap:wrap }
+  .chead .t { letter-spacing:.02em }
+  .chead .grow { min-width:12px }
+  .pane, .card, .sheet, .pop, .themepop { border-color:var(--line); box-shadow:0 12px 36px -28px rgba(0,0,0,.26) }
+  .deed, .sel, .folder, .iconbtn, .side nav button, .room-nav button { transition:background-color .2s ease, color .2s ease, border-color .2s ease, transform .2s cubic-bezier(.2,.7,.2,1), box-shadow .2s ease }
+  .deed:active, .iconbtn:active, .side nav button:active { transform:scale(.97) }
+  button:focus-visible, input:focus-visible, select:focus-visible { outline:2px solid var(--accent); outline-offset:2px }
+  .local-library { min-height:220px; padding:6px 0 32px }
+  .local-library .local-grid { grid-template-columns:repeat(auto-fill,minmax(155px,1fr)); gap:22px 18px; padding:8px 0 }
+  .local-library .wcard { min-width:0; transition:transform .24s cubic-bezier(.2,.7,.2,1), box-shadow .24s ease, border-color .24s ease }
+  .local-library .wcard:hover { transform:translateY(-3px); box-shadow:0 14px 30px -22px rgba(0,0,0,.4) }
+  .local-library .wcard .cv { aspect-ratio:2/3 }
+  .local-library .emptyline { background:var(--rail-card); border:1px solid var(--line); border-radius:16px; margin-top:12px; padding:48px 24px }
+  #lChips .chiprow { padding-left:0; padding-right:0 }
+  @media(max-width:600px) { .local-library .local-grid { grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:14px } .chead { gap:8px } .chead .t { font-size:23px } }
+  /* 各模块共享清晰的工作区边界，保留各自的列表、编辑器和阅读交互。 */
+  .fewrap, .vtwrap, .fmcols, .zsplit, .rdwrap { border:1px solid var(--line); border-radius:16px; overflow:hidden; background:var(--rail-card) }
+  .fewrap > .feside, .vtwrap > .vtside, .fmleft { background:var(--paper-2) }
+  .fewrap > .felist, .vtwrap > .vtmain, .fmcols > :last-child { background:var(--paper) }
+  .clipin { padding:0 }
+  .clipdrop, .vthero { background:var(--rail-card); border:1px solid var(--line); border-radius:16px; padding:20px; margin-bottom:16px }
+  .statbox { background:var(--rail-card); border-radius:14px; padding:16px }
+  .wrapp { padding:0 0 14px }
+  .wrdocs { padding:12px; border:1px solid var(--line); border-radius:16px; background:var(--rail-card) }
+  .wrmain { border-radius:16px }
+  .frow, .vtbook, .wrdoc { transition:background-color .2s ease, border-color .2s ease }
+  @media(max-width:760px) { .fewrap, .vtwrap, .fmcols, .zsplit, .rdwrap { border-radius:12px } .wrdocs { padding:8px } }
+  /* 浮动工作台：操作、内容和导航各有自己的呼吸与层级。 */
+  .vpane[data-pane="video"] > .vbody, .vpane[data-pane="flomo"] > .vbody,
+  .vpane[data-pane="write"] > .vbody, .vpane[data-pane="read"] > .vbody { min-height:0; }
+  .vtwrap { --vt-side:260px; gap:14px; border:0; background:transparent; overflow:visible; }
+  .vtwrap > .vtside { border:1px solid var(--line); border-radius:18px; background:var(--rail-card); }
+  .vtwrap > .vtmain { gap:14px; background:transparent; overflow:hidden; }
+  .vtwrap .vttask { flex:0 1 auto; max-height:48%; padding:4px 4px 0; border:1px solid var(--line); border-radius:18px; background:var(--rail-card); }
+  .vtwrap .vthero { margin:0; padding:20px; border:0; background:transparent; }
+  .vtwrap .vtwork { border:1px solid var(--line); border-radius:18px; background:var(--paper); overflow:hidden; }
+  .vtwrap .vtsec { padding:16px 18px 10px; }
+  .vtwrap .vttb { padding:10px 18px; background:var(--paper-2); }
+  .fmcols { gap:16px; border:0; background:transparent; overflow:visible; }
+  .fmleft { width:clamp(250px,30%,350px); border:1px solid var(--line); border-radius:18px; background:var(--rail-card); overflow:hidden; }
+  .fmcompose { padding:20px; gap:12px; }
+  .fmcompose .ttl { font-size:16px; color:var(--ink); }
+  .fmcompose .fmed { background:var(--paper); border-radius:14px; padding:16px; }
+  .fmright { min-width:0; border:1px solid var(--line); border-radius:18px; background:var(--paper); overflow:hidden; }
+  .fmtools { padding:14px 18px; background:var(--paper-2); }
+  .fmscr { padding:14px 18px 26px; }
+  .fmcard { width:min(720px,100%); border-radius:15px; }
+  .wrapp { gap:16px; }
+  .wrdocs { width:clamp(190px,23%,250px); padding:14px; border-radius:18px; background:var(--rail-card); }
+  .wrmain { gap:10px; padding:20px; border:1px solid var(--line); border-radius:18px; background:var(--paper); overflow:hidden; }
+  .wrhead { padding:4px 2px 8px; }
+  .wrtitle { font-size:23px; }
+  .wred { border-radius:14px; background:var(--paper); }
+  .wrbar { padding:10px; border-radius:12px; background:var(--paper-2); }
+  .rdwrap { border-radius:18px; background:var(--paper); }
+  .rdnav { background:var(--paper-2); }
+  .rdnavhd { padding:18px 16px; }
+  .rdbar { padding-left:20px; padding-right:20px; }
+  .rdin { padding-top:42px; }
+  .rdfoot { padding-left:18px; padding-right:18px; }
+  /* 操控时的轻弹与入场节奏，只作用于可交互元素。 */
+  @media(hover:hover) {
+    .vtbook, .fmcard, .wrdoc, .rdtool, .deed { transition:transform .28s cubic-bezier(.2,.8,.2,1), box-shadow .28s ease, background-color .22s ease, border-color .22s ease; }
+    .vtbook:hover, .fmcard:hover, .wrdoc:hover { transform:translateY(-2px); box-shadow:0 9px 24px -20px rgba(0,0,0,.5); }
+    .rdtool:hover, .deed:hover { transform:translateY(-1px); }
+  }
+  .vtbook:active, .fmcard:active, .wrdoc:active, .rdtool:active, .deed:active { transform:scale(.97); }
+  .vtwrap, .fmcols, .wrapp, .rdwrap { transition:gap .3s cubic-bezier(.2,.8,.2,1), grid-template-columns .35s cubic-bezier(.2,.8,.2,1); }
+  @media(max-width:860px) {
+    .vtwrap { gap:8px; }
+    .vtwrap > .vtmain { overflow:visible; }
+    .vtwrap .vttask { max-height:none; }
+  }
+  @media(max-width:840px) {
+    .fmcols { gap:10px; }
+    .fmleft { width:auto; }
+    .wrapp { gap:10px; }
+    .wrmain { padding:12px; }
+  }
+  @media(max-width:600px) {
+    .vtwrap .vthero { padding:14px; }
+    .fmcompose { padding:14px; }
+    .wrapp { gap:8px; flex-direction:column; height:auto; }
+    .wrdocs { width:auto; max-height:220px; }
+    .wrmain { min-height:60vh; overflow:visible; }
+    .rdin { padding:22px 18px 56px; }
+  }
+  /* 箭头始终保留独立空间：覆盖模块控件对 padding 的局部重置。 */
+  select, .stools select.sel, .fetools select.f, .vttb select.f,
+  .wrline select, select.rdpick, select.deed {
+    box-sizing:border-box; padding-right:32px; text-overflow:ellipsis;
+  }
+  select:not(.rdpick) {
+    background-image:linear-gradient(45deg, transparent 49%, var(--ink-3) 50%),
+      linear-gradient(-45deg, transparent 49%, var(--ink-3) 50%);
+    background-size:5px 5px, 5px 5px;
+    background-position:calc(100% - 14px) 55%, calc(100% - 9px) 55%;
+    background-repeat:no-repeat;
+  }
+  #sstate { min-width:110px; }
+  /* 悬停反馈不改变命中区域，避免指针位于边缘时反复进入和离开。 */
+  @media(hover:hover) {
+    .vtbook:hover, .fmcard:hover, .wrdoc:hover, .rdtool:hover, .deed:hover,
+    .wcard:hover, .local-library .wcard:hover { transform:none; }
+  }
+  @media(prefers-reduced-motion:reduce) { *, *::before, *::after { scroll-behavior:auto!important; animation-duration:.01ms!important; animation-iteration-count:1!important; transition-duration:.01ms!important } }
 </style>
 </head>
 <body class="appflex">
@@ -4260,15 +4427,9 @@
   <!-- 左上角这一颗就是「你是谁」：没上传头像时是名字第一个字，传了就是那张图。
        它同时是个人主界面的入口，也是「靠左缘滑出」那一种待法下唯一的常驻线索。
        data-av 是一个「把头像涂到这里」的记号，侧边栏顶部和主界面那一屏共用同一份。 -->
-  <button class="avatarbtn meav" id="mebtn" data-av title="个人主界面">归</button>
-  <div class="mark" title="归藏">
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.45"
-         stroke-linecap="round" stroke-linejoin="round">
-      <path d="M10 4.6C8.4 3.4 6.3 3.1 3.6 3.4v11.3c2.7-.3 4.8 0 6.4 1.2 1.6-1.2 3.7-1.5 6.4-1.2V3.4c-2.7-.3-4.8 0-6.4 1.2z"/>
-      <path d="M10 4.6v11.3"/>
-    </svg>
-  </div>
-  <div class="name">归藏</div>
+  <nav class="room-nav" aria-label="快捷导航">
+    <button data-room-view="shelf">书库</button><button data-room-view="notes">笔记</button><button data-room-view="local">阅读</button><button data-room-view="stats">阅读统计</button>
+  </nav>
   <!-- 顶端正中这一颗是「AI 功能导航」：点开在归藏自己的内置浏览器里看 ai-bot.cn，
        不跳去系统浏览器。地址条就在那一屏顶上，想换哪个站直接改地址。 -->
   <button class="ainavbtn" id="aiNavBtn" title="AI 功能导航（在归藏里打开）">
@@ -4281,6 +4442,7 @@
     <span>AI 导航</span>
   </button>
   <div class="spacer"></div>
+  <button class="room-search" type="button" data-room-view="search">⌕　搜索书籍…</button>
   <button class="iconbtn" id="refresh" title="刷新（换过微信读书 Key 之后点一下就能拿到新书架）">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
          stroke-linecap="round" stroke-linejoin="round">
@@ -4310,12 +4472,10 @@
 <div class="themepop" id="themePop" role="menu" aria-label="主题">
   <div class="hd">主题</div>
   <div class="themelist" id="themeSeg">
-    <button data-t="auto" title="跟随系统"><span class="themechip" style="background:linear-gradient(135deg,#f4f7fc,#253041)"><i style="width:68%"></i><i style="width:42%;opacity:.55"></i></span><span>跟随系统</span></button>
-    <button data-t="light" title="浅色"><span class="themechip" style="background:linear-gradient(135deg,#ffffff,#e8eef8)"><i style="width:70%;background:#1d2636"></i><i style="width:48%;background:#5b6c86"></i></span><span>浅色</span></button>
-    <button data-t="dark" title="深色"><span class="themechip" style="background:linear-gradient(135deg,#20242c,#11141a)"><i style="width:68%;background:#d7dce7"></i><i style="width:44%;background:#8993a6"></i></span><span>深色</span></button>
-    <button data-t="classic" title="古典金色优雅"><span class="themechip" style="background:linear-gradient(135deg,#f5ead0,#b88a3f)"><i style="width:66%;background:#4d371d"></i><i style="width:45%;background:#876329"></i></span><span>古典金</span></button>
-    <button data-t="ink" title="水墨风极简黑白"><span class="themechip" style="background:linear-gradient(135deg,#fff,#ececea 62%,#3b3b39)"><i style="width:70%;background:#1b1b1b"></i><i style="width:38%;background:#777"></i></span><span>水墨</span></button>
-    <button data-t="notion" title="Notion 风格"><span class="themechip" style="background:linear-gradient(135deg,#fff,#f4f3ef)"><i style="width:66%;background:#37352f"></i><i style="width:47%;background:#d7d3ca"></i></span><span>Notion</span></button>
+    <button data-t="ink" title="纸白"><span class="themechip" style="background:linear-gradient(135deg,#fafafa,#dedddd)"><i></i><i></i></span><span>纸白</span></button>
+    <button data-t="dark" title="夜读"><span class="themechip" style="background:linear-gradient(135deg,#353a3c,#171a1c)"><i style="background:#eee"></i><i style="background:#aaa"></i></span><span>夜读</span></button>
+    <button data-t="moss" title="苔青"><span class="themechip" style="background:linear-gradient(135deg,#f4f8f2,#cbdccf)"><i style="background:#426b50"></i><i style="background:#718c78"></i></span><span>苔青</span></button>
+    <button data-t="sand" title="暖砂"><span class="themechip" style="background:linear-gradient(135deg,#fffaf2,#e0d2bd)"><i style="background:#9a6345"></i><i style="background:#b99a7b"></i></span><span>暖砂</span></button>
   </div>
   <div class="foot">主题只保存在本机。</div>
 </div>
@@ -4761,6 +4921,11 @@
     </aside>
 
     <section class="content glass" id="view"></section>
+    <aside class="room-rail" aria-label="阅读概览">
+      <div class="room-card"><span class="room-date" id="roomDate"></span><span class="room-week" id="roomWeek"></span><p class="room-quote">「少做重复的事，多做连接的事。」</p></div>
+      <div class="room-card"><h2>阅读概览</h2><button class="room-link" data-room-view="stats">阅读统计　→</button><button class="room-link" data-room-view="notes">查看划线笔记　→</button></div>
+      <div class="room-card"><h2>继续探索</h2><button class="room-link" data-room-view="random">随记漫步　→</button><button class="room-link" data-room-view="pick">为我推荐　→</button></div>
+    </aside>
 
   </div>
 
@@ -4771,7 +4936,7 @@
   <button class="deed" data-b="fetch">抓取</button>
   <button class="deed" data-b="shelf">加书架</button>
   <button class="deed" data-b="zip">导出</button>
-  <select class="deed" id="batchState" style="padding:0 6px">
+  <select class="deed" id="batchState">
     <option value="待读">待读</option>
     <option value="在读">在读</option>
     <option value="已读">已读</option>
@@ -5804,7 +5969,7 @@ let sideFootStamp = '';
    没重启。2026-10-07 用户报「左侧没有安娜的档案」就是它：导航那几格是后端 NAV_ITEMS
    给的，进程还是上一版，界面再怎么新也铺不出这一格，而两个版本号看着完全一样。
    后端因此多报一个 code_disk（磁盘上此刻的指纹），和它自己的 code 一比就露馅。 */
-const GUIZANG_PAGE = "1.2.6";
+const GUIZANG_PAGE = "1.2.7";
 const GZ = {back: "", code: "", disk: "", drift: false, stale: false,
             hid: false, swapping: false, why: "", prof: ""};
 
@@ -6431,7 +6596,6 @@ $('#navList').addEventListener('change', e => {
 /* 左上角这一颗与侧边栏顶部那一块都是「个人主界面」的入口。
    原来这里是一颗齿轮，设置从这一层退到个人主界面最下面那一颗。 */
 function toMe() { setView('me'); }
-$('#mebtn').onclick = toMe;
 $('#meHead').onclick = toMe;
 $('#meHead').onkeydown = e => {
   if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toMe(); }
@@ -9978,18 +10142,17 @@ const THEME_KEY = 'guizang_theme';
 let theme = 'ink';
 // 缺省落到水墨（和 <head> 里那行早定主题的兜底保持一致）；用户选过就顺着那一份。
 try { theme = localStorage.getItem(THEME_KEY) || 'ink'; } catch (e) {}
-const THEMES = ['auto', 'light', 'dark', 'classic', 'ink', 'notion'];
+const THEMES = ['ink', 'dark', 'moss', 'sand'];
 
 function applyTheme(t) {
-  if (!THEMES.includes(t)) t = 'auto';
+  if (!THEMES.includes(t)) t = 'ink';
   theme = t;
   const root = document.documentElement;
   /* 换肤要一次性到位，不许补间（见 CSS 里 .theme-switching 那段）。这一帧先挂类把全站补间
      压平，改完主题下一帧再摘 —— 摘的时候颜色已经落定，各组件不会再有「旧色→新色」可补，
      也就不会几十个一起错时闪。 */
   root.classList.add('theme-switching');
-  if (t === 'auto') delete root.dataset.theme;
-  else root.dataset.theme = t;
+  root.dataset.theme = t;
   // 氛围层的色点透明度跟着浅/深主题走；这段代码还没跑起来时（首屏）先不管，
   // 等 applyAmbient 自己按当时的主题算一遍。ambReady 用 var 声明就是为了在这里读得到。
   if (ambReady) applyAmbient();
@@ -10097,8 +10260,7 @@ function ambRGBA(hex, alpha) {
 function ambDark() {
   const root = document.documentElement;
   if (root.dataset.theme === 'dark') return true;
-  if (root.dataset.theme === 'light' || root.dataset.theme === 'classic'
-    || root.dataset.theme === 'ink' || root.dataset.theme === 'notion') return false;
+  if (root.dataset.theme) return false;
   try { return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme:dark)').matches); }
   catch (e) { return false; }
 }
@@ -10635,6 +10797,8 @@ function paneEl(name) {
     $('#view').append(p);
     PANES[name] = p;
   }
+  document.body.classList.toggle('shelf-room', name === 'shelf');
+  document.querySelectorAll('.room-nav [data-room-view]').forEach(b => b.classList.toggle('on', b.dataset.roomView === name));
   const changed = shownPane !== name;
   if (changed && shownPane === 'write' && name !== 'write') wrFlush();
   if (changed && shownPane === 'read' && name !== 'read') {
@@ -10718,18 +10882,12 @@ function slideView(dir, name) {
   const p = PANES[name || v];
   if (!p || !p.animate || prefersReduced()) return;
   const prev = slideAnim.get(p);
-  if (prev && prev.playState === 'running') return;   // 正在进场：续着跑，别重淡
-  // 第一次把这一屏建出来是该给足的交接；之后再来只是「换回熟悉的地方」，
-  // 位移和时长都收一档，连点侧边栏才会觉得是滑过去而不是慢吞吞淡一下。
-  const first = !slideSeen.has(name);
-  slideSeen.add(name);
-  const dy = (dir === 'pd' ? 1 : -1) * (first ? 16 : 11);
-  // 收尾那一小段用 easing 的末段回弹带过去（--spring 自己就带一点），
-  // 关键帧只留起止两帧 —— 中间不插帧，合成器不必逐帧重算。
-  const a = p.animate(
-    [{opacity: 0, transform: `translate3d(0,${dy}px,0) scale(${first ? .994 : .997})`},
-     {opacity: 1, transform: 'none'}],
-    {duration: first ? 440 : 340, easing: SPRING});
+  if (prev && prev.playState === 'running') return;
+  const dy = dir === 'pd' ? 8 : -8;
+  const a = p.animate([
+    {opacity:.86, transform:`translate3d(0,${dy}px,0)`},
+    {opacity:1, transform:'translate3d(0,0,0)'}
+  ], {duration:280, easing:'cubic-bezier(.22,1,.36,1)'});
   slideAnim.set(p, a);
   const done = () => { if (slideAnim.get(p) === a) slideAnim.delete(p); };
   a.finished.then(done, done);
@@ -10765,6 +10923,14 @@ function slideBack(fn) {
   slideDir = 'pu';
   try { fn(); } finally { slideDir = 'pd'; }
 }
+
+document.addEventListener('click', e => {
+  const button = e.target.closest('[data-room-view]');
+  if (button) setView(button.dataset.roomView);
+});
+const roomNow = new Date();
+document.getElementById('roomDate').textContent = `${roomNow.getMonth()+1} 月 ${roomNow.getDate()} 日`;
+document.getElementById('roomWeek').textContent = '周' + '日一二三四五六'[roomNow.getDay()];
 
 function setView(nv) {
   const order = navBtns().map(x => x.dataset.v);
@@ -12025,7 +12191,6 @@ function uiBatchTag(mod) {
 /** 这一格里筛完该摆的书。local 里每一条都是「已经在硬盘上」的
  *  （list_books 只扫书库目录），所以按模块取来即可。 */
 let localSig = '';      // 网格指纹：筛选 + 关键词 + 书目不变就不重画，切视图不闪
-let localPage = 0;      // 本地书架当前第几架：左右切换，不靠整页上下滚
 function localBooks() {
   return shelfFiltered('local');
 }
@@ -12198,10 +12363,7 @@ function renderLocalView() {
         <input class="f" id="lfilter" placeholder="按书名 / 作者筛选这一格" autocomplete="off">
         <span class="cnt" id="lcnt"></span>
       </div>
-      <div class="bookcase" id="lWrap">
-        <div class="casehead" aria-hidden="true"><i></i><i></i><i></i></div>
-        <div class="casestage"></div>
-      </div>`;
+      <div class="local-library" id="lWrap" aria-live="polite"></div>`;
     // 文件选择器藏在页里，点「导入书籍」时替它点一下
     const inp = document.createElement('input');
     inp.type = 'file';
@@ -12242,169 +12404,33 @@ function wireLocalTools(p, body) {
   }
 }
 
-/** 键控复用：同一本书继续用老节点（封面已解码、展开状态、滚动位置都留着），
- *  只补新增的、只删消失的 —— 和书架同一套「点一下不闪」的做法。 */
+/** 本地书架：连续网格与按需封面，保留现有的分类、导入和卡片操作。 */
 function renderLocalGrid(body) {
   body = body || (PANES.local && PANES.local.querySelector(':scope > .vbody'));
   if (!body) return;
   const u = uiOf('local');
   modChips('local', body.querySelector('#lChips'));
-  const all = localBooks();
+  const books = localBooks();
   const q = (u.q || '').trim();
-  const sig = u.folder + '|' + u.tag + '|' + q + '|' + window.innerWidth + '|'
-    + all.map(b => b.id).join(',');
+  const sig = JSON.stringify([u.folder, u.tag, q, books]);
   if (sig === localSig) return;
   localSig = sig;
-
-  setNote('local', all.length ? `共 ${all.length} 本` : '');
+  setNote('local', books.length ? `共 ${books.length} 本` : '');
   const cnt = body.querySelector('#lcnt');
-  if (cnt) cnt.textContent = (q || u.folder || u.tag) && all.length ? `筛出 ${all.length} 本` : '';
-  const mine = modBooks('local').length;
+  if (cnt) cnt.textContent = (q || u.folder || u.tag) ? `筛出 ${books.length} 本` : '';
   const bg = $('#bgLocal');
-  if (bg) bg.textContent = mine ? mine : '';
-
+  if (bg) bg.textContent = modBooks('local').length || '';
   const wrap = body.querySelector('#lWrap');
   if (!wrap) return;
-  const caseEl = wrap.classList.contains('bookcase') ? wrap : wrap.closest('.bookcase');
-  const stage = caseEl && caseEl.querySelector('.casestage');
-  if (!all.length) {
-    if (caseEl) {
-      caseEl.classList.add('is-empty');
-      if (stage) stage.replaceChildren();
-      // 空态只许有一张：切一次侧边栏整屏就重铺一次（setView → localSig = '' →
-      // renderLocalGrid），append 会把上一张留着 —— 用户看到的就是「切来切去，
-      // 那句『本地书架还是空的』自己往下长」。这里先收干净再放，幂等。
-      for (const old of caseEl.querySelectorAll('.emptyline')) old.remove();
-      caseEl.append(modEmpty('local'));
-    } else {
-      wrap.replaceChildren(modEmpty('local'));
-    }
+  if (!books.length) {
+    wrap.replaceChildren(modEmpty('local'));
     return;
   }
-  if (caseEl) {
-    caseEl.classList.remove('is-empty');
-    const empty = caseEl.querySelector('.emptyline');
-    if (empty) empty.remove();
-  }
-  if (!stage) return;
-
-  const cap = localPerPage();
-  const count = Math.max(1, Math.ceil(all.length / cap));
-  const per = Math.ceil(all.length / count);
-  const pages = [];
-  for (let i = 0; i < all.length; i += per) pages.push(all.slice(i, i + per));
-  localPage = Math.max(0, Math.min(localPage, pages.length - 1));
-
-  const view = document.createElement('div');
-  view.className = 'caseviewport';
-  const track = document.createElement('div');
-  track.className = 'casetrack';
-  track.style.transform = `translate3d(${-localPage * 100}%,0,0)`;
-  const pageGrids = [];
-  pages.forEach((books, pi) => {
-    const page = document.createElement('div');
-    page.className = 'casepage';
-    page.dataset.page = String(pi);
-    const shelf = document.createElement('div');
-    shelf.className = 'shelf';
-    const grid = document.createElement('div');
-    grid.className = 'sgrid';
-    for (const b of books) grid.append(localCard(b));
-    pageGrids.push(grid);
-    shelf.append(grid);
-    page.append(shelf);
-    track.append(page);
-  });
-  view.append(track);
-
-  const nav = document.createElement('div');
-  nav.className = 'casenav';
-  nav.dataset.nav = 'localcase';
-  const prev = document.createElement('button');
-  prev.type = 'button';
-  prev.className = 'casearrow';
-  prev.setAttribute('aria-label', '上一架');
-  prev.title = '上一架（←）';
-  prev.textContent = '‹';
-  prev.onclick = e => { e.stopPropagation(); go(-1); };
-  const pos = document.createElement('span');
-  pos.className = 'casepos';
-  pos.textContent = `${localPage + 1} / ${pages.length}`;
-  const next = document.createElement('button');
-  next.type = 'button';
-  next.className = 'casearrow';
-  next.setAttribute('aria-label', '下一架');
-  next.title = '下一架（→）';
-  next.textContent = '›';
-  next.onclick = e => { e.stopPropagation(); go(1); };
-  nav.append(prev, pos, next);
-
-  const go = dir => {
-    const want = Math.max(0, Math.min(pages.length - 1, localPage + dir));
-    if (want === localPage) return;
-    localPage = want;
-    track.style.transform = `translate3d(${-localPage * 100}%,0,0)`;
-    pos.textContent = `${localPage + 1} / ${pages.length}`;
-    prev.disabled = localPage <= 0;
-    next.disabled = localPage >= pages.length - 1;
-    paintCovers(pageGrids[localPage]);
-  };
-  prev.disabled = localPage <= 0;
-  next.disabled = localPage >= pages.length - 1;
-  // 触控板 / 鼠标左右拖：和左右按钮是同一个裁决点，拖过 44px 才翻架。
-  // 只认横向位移；纵向留给页面（书架本身在窗口矮时仍要能滚到下面）。
-  let drag = null;
-  view.addEventListener('pointerdown', e => {
-    if (e.target.closest('button')) return;
-    drag = {x: e.clientX, y: e.clientY};
-  });
-  view.addEventListener('pointerup', e => {
-    if (!drag) return;
-    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
-    drag = null;
-    if (Math.abs(dx) >= 44 && Math.abs(dx) > Math.abs(dy)) go(dx < 0 ? 1 : -1);
-  });
-  view.addEventListener('pointercancel', () => { drag = null; });
-  // 触控板横向划：上一架 / 下一架。纵向滚轮不动这一层，避免一滚就把整页翻走。
-  let wheelAt = 0;
-  view.addEventListener('wheel', e => {
-    if (Math.abs(e.deltaX) < 24 || Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
-    e.preventDefault();
-    const now = Date.now();
-    if (now - wheelAt < 360) return;
-    wheelAt = now;
-    go(e.deltaX > 0 ? 1 : -1);
-  }, {passive: false});
-
-  stage.replaceChildren(view, nav);
-  paintCovers(pageGrids[localPage]);
-}
-
-/** 本地书架的左右键：翻架不翻页，和屏幕上那两颗箭头走同一个出口。 */
-function localCaseStep(dir) {
-  const nav = document.querySelector('.casenav[data-nav="localcase"]');
-  if (!nav) return;
-  const b = nav.querySelector(dir < 0 ? '.casearrow:first-child' : '.casearrow:last-child');
-  if (b && !b.disabled) b.click();
-}
-
-document.addEventListener('keydown', e => {
-  if (v !== 'local' || document.body.classList.contains('reading')) return;
-  if (e.metaKey || e.ctrlKey || e.altKey) return;
-  const t = e.target;
-  if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA'
-    || t.isContentEditable)) return;
-  if (e.key === 'ArrowLeft') { localCaseStep(-1); e.preventDefault(); }
-  else if (e.key === 'ArrowRight') { localCaseStep(1); e.preventDefault(); }
-});
-
-/** 一屏书架摆几本：宽屏六本、窄窗递减，始终保持一排能读清书脊。 */
-function localPerPage() {
-  const w = window.innerWidth || 1280;
-  if (w >= 1280) return 6;
-  if (w >= 980) return 5;
-  if (w >= 720) return 4;
-  return 3;
+  const grid = document.createElement('div');
+  grid.className = 'sgrid local-grid';
+  for (const book of books) grid.append(localCard(book));
+  wrap.replaceChildren(grid);
+  paintCovers(grid);
 }
 
 /* ── 导入自己的书 ─────────────────────────

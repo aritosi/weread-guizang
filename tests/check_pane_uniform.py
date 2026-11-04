@@ -43,8 +43,8 @@ chk("界面里有 <style> 块", bool(CSS))
 # ── A 舞台宽度 ────────────────────────────────────────────────
 main_w = re.findall(r"--main-w\s*:\s*([^;]+);", CSS)
 chk("--main-w 只定义一次", len(main_w) == 1, main_w)
-chk("--main-w 是 min(1440px, 100%)（够宽的那一档，阅读器三栏与订阅三栏都放得下）",
-    bool(main_w) and "1440px" in main_w[0] and "100%" in main_w[0], main_w)
+chk("--main-w 铺满窗口，所有视图共用相同舞台",
+    bool(main_w) and main_w[0].strip() == "100%", main_w)
 
 # 所有「作用于 main」的规则里写没写 max-width。
 main_rules = []
